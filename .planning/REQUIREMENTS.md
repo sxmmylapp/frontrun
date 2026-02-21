@@ -67,10 +67,10 @@ Requirements for milestone v2.0: USD Transactions. Each maps to roadmap phases.
 
 ### Token Purchase UX
 
-- [ ] **PURC-01**: User can select from 3 token packs: $5/500 tokens, $10/1,100 tokens (+10% bonus), $20/2,400 tokens (+20% bonus)
-- [ ] **PURC-02**: User can pay via Apple Pay or Google Pay through the Express Checkout Element
-- [ ] **PURC-03**: User can pay via card entry through the Payment Element fallback when no wallet is available
-- [ ] **PURC-04**: User sees a success confirmation and their token balance animates up in real-time after purchase
+- [x] **PURC-01**: User can select from 3 token packs: $5/500 tokens, $10/1,100 tokens (+10% bonus), $20/2,400 tokens (+20% bonus)
+- [x] **PURC-02**: User can pay via Apple Pay or Google Pay through the Express Checkout Element
+- [x] **PURC-03**: User can pay via card entry through the Payment Element fallback when no wallet is available
+- [x] **PURC-04**: User sees a success confirmation and their token balance animates up in real-time after purchase
 - [ ] **PURC-05**: User can view their purchase history on the profile page showing date, USD amount, and tokens received
 - [ ] **PURC-06**: User sees a "Buy more tokens" CTA in the BetSlip when they have insufficient balance to place a bet
 
@@ -122,10 +122,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAY-04 | Phase 6 | Complete |
 | PAY-05 | Phase 6 | Complete |
 | PAY-06 | Phase 6 | Complete |
-| PURC-01 | Phase 8 | Pending |
-| PURC-02 | Phase 8 | Pending |
-| PURC-03 | Phase 8 | Pending |
-| PURC-04 | Phase 8 | Pending |
+| PURC-01 | Phase 8 | Complete |
+| PURC-02 | Phase 8 | Complete |
+| PURC-03 | Phase 8 | Complete |
+| PURC-04 | Phase 8 | Complete |
 | PURC-05 | Phase 9 | Pending |
 | PURC-06 | Phase 9 | Pending |
 
