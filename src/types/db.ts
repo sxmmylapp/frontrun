@@ -39,6 +39,127 @@ export type Database = {
   }
   public: {
     Tables: {
+      markets: {
+        Row: {
+          id: string
+          creator_id: string
+          question: string
+          resolution_criteria: string
+          status: string
+          resolved_outcome: string | null
+          closes_at: string
+          resolved_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          creator_id: string
+          question: string
+          resolution_criteria: string
+          status?: string
+          resolved_outcome?: string | null
+          closes_at: string
+          resolved_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          creator_id?: string
+          question?: string
+          resolution_criteria?: string
+          status?: string
+          resolved_outcome?: string | null
+          closes_at?: string
+          resolved_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "markets_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_pools: {
+        Row: {
+          market_id: string
+          yes_pool: number
+          no_pool: number
+          updated_at: string | null
+        }
+        Insert: {
+          market_id: string
+          yes_pool: number
+          no_pool: number
+          updated_at?: string | null
+        }
+        Update: {
+          market_id?: string
+          yes_pool?: number
+          no_pool?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_pools_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: true
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      positions: {
+        Row: {
+          id: string
+          user_id: string
+          market_id: string
+          outcome: string
+          shares: number
+          cost: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          market_id: string
+          outcome: string
+          shares: number
+          cost: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          market_id?: string
+          outcome?: string
+          shares?: number
+          cost?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -121,6 +242,15 @@ export type Database = {
     }
     Functions: {
       generate_display_name: { Args: never; Returns: string }
+      place_bet: {
+        Args: {
+          p_user_id: string
+          p_market_id: string
+          p_outcome: string
+          p_amount: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

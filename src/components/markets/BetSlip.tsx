@@ -1,0 +1,148 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Decimal from 'decimal.js';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { placeBet } from '@/lib/markets/actions';
+import { previewTrade } from '@/lib/amm/cpmm';
+import { useUserBalance } from '@/hooks/useUserBalance';
+import { toast } from 'sonner';
+
+type BetSlipProps = {
+  marketId: string;
+  yesPool: number;
+  noPool: number;
+};
+
+export function BetSlip({ marketId, yesPool, noPool }: BetSlipProps) {
+  const router = useRouter();
+  const { balance } = useUserBalance();
+  const [outcome, setOutcome] = useState<'yes' | 'no'>('yes');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const numAmount = Number(amount) || 0;
+
+  // Preview payout using the CPMM math
+  const preview = useMemo(() => {
+    if (numAmount <= 0) return null;
+    try {
+      const pool = {
+        yesPool: new Decimal(yesPool),
+        noPool: new Decimal(noPool),
+      };
+      const result = previewTrade(pool, outcome, new Decimal(numAmount));
+      return {
+        shares: result.sharesReceived.toDecimalPlaces(2).toNumber(),
+        payout: result.sharesReceived.toDecimalPlaces(2).toNumber(), // Each winning share pays 1 token
+        impliedProb: result.impliedProbability.mul(100).toDecimalPlaces(1).toNumber(),
+      };
+    } catch {
+      return null;
+    }
+  }, [numAmount, outcome, yesPool, noPool]);
+
+  async function handleBet() {
+    if (numAmount <= 0 || numAmount > balance) return;
+
+    setLoading(true);
+    const result = await placeBet({
+      marketId,
+      outcome,
+      amount: numAmount,
+    });
+    setLoading(false);
+
+    if (result.success) {
+      toast.success(`Bet placed — ${result.data.shares.toFixed(1)} shares`);
+      setAmount('');
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-sm border border-border bg-card p-4">
+      <h3 className="text-xs font-medium text-muted-foreground">Place Bet</h3>
+
+      {/* Outcome selector */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setOutcome('yes')}
+          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-colors ${
+            outcome === 'yes'
+              ? 'border-green-500 bg-green-950/30 text-green-400'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          YES
+        </button>
+        <button
+          onClick={() => setOutcome('no')}
+          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-colors ${
+            outcome === 'no'
+              ? 'border-red-500 bg-red-950/30 text-red-400'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          NO
+        </button>
+      </div>
+
+      {/* Amount input */}
+      <div className="mt-3">
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            inputMode="numeric"
+            placeholder="Amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="rounded-sm"
+            min={1}
+            max={balance}
+          />
+          <button
+            onClick={() => setAmount(String(balance))}
+            className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Max
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Balance: {balance.toLocaleString()} tokens
+        </p>
+      </div>
+
+      {/* Payout preview */}
+      {preview && numAmount > 0 && (
+        <div className="mt-3 space-y-1 rounded-sm bg-secondary/50 p-3 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Shares received</span>
+            <span>{preview.shares}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Potential payout</span>
+            <span className="font-medium">{preview.payout} tokens</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">New probability</span>
+            <span>{preview.impliedProb}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* Submit */}
+      <Button
+        className="mt-3 w-full rounded-sm"
+        onClick={handleBet}
+        disabled={loading || numAmount <= 0 || numAmount > balance}
+      >
+        {loading ? 'Placing bet...' : `Bet ${numAmount || 0} on ${outcome.toUpperCase()}`}
+      </Button>
+    </div>
+  );
+}

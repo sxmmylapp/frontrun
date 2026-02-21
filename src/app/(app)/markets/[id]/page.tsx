@@ -1,0 +1,60 @@
+import { createClient } from '@/lib/supabase/server';
+import { notFound } from 'next/navigation';
+import { MarketDetail } from '@/components/markets/MarketDetail';
+
+export default async function MarketPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: market } = await supabase
+    .from('markets')
+    .select(`
+      id,
+      question,
+      resolution_criteria,
+      status,
+      resolved_outcome,
+      closes_at,
+      resolved_at,
+      created_at,
+      creator_id,
+      market_pools ( yes_pool, no_pool ),
+      profiles!markets_creator_id_fkey ( display_name )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (!market) return notFound();
+
+  const pool = Array.isArray(market.market_pools)
+    ? market.market_pools[0]
+    : market.market_pools;
+
+  const creator = Array.isArray(market.profiles)
+    ? market.profiles[0]
+    : market.profiles;
+
+  return (
+    <MarketDetail
+      market={{
+        id: market.id,
+        question: market.question,
+        resolutionCriteria: market.resolution_criteria,
+        status: market.status,
+        resolvedOutcome: market.resolved_outcome,
+        closesAt: market.closes_at,
+        resolvedAt: market.resolved_at,
+        createdAt: market.created_at ?? new Date().toISOString(),
+        creatorName: creator?.display_name ?? 'Unknown',
+      }}
+      initialPool={{
+        yesPool: Number(pool?.yes_pool ?? 500),
+        noPool: Number(pool?.no_pool ?? 500),
+      }}
+    />
+  );
+}

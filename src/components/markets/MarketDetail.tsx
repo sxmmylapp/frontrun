@@ -1,0 +1,149 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { formatDistanceToNow, format } from 'date-fns';
+import { BetSlip } from './BetSlip';
+
+type MarketProps = {
+  market: {
+    id: string;
+    question: string;
+    resolutionCriteria: string;
+    status: string;
+    resolvedOutcome: string | null;
+    closesAt: string;
+    resolvedAt: string | null;
+    createdAt: string;
+    creatorName: string;
+  };
+  initialPool: {
+    yesPool: number;
+    noPool: number;
+  };
+};
+
+function calcProb(yesPool: number, noPool: number): number {
+  const total = yesPool + noPool;
+  if (total === 0) return 50;
+  return (noPool / total) * 100;
+}
+
+export function MarketDetail({ market, initialPool }: MarketProps) {
+  const [pool, setPool] = useState(initialPool);
+  const yesProb = calcProb(pool.yesPool, pool.noPool);
+  const noProb = 100 - yesProb;
+
+  const closesAt = new Date(market.closesAt);
+  const isOpen = market.status === 'open' && closesAt > new Date();
+  const isResolved = market.status === 'resolved';
+  const isCancelled = market.status === 'cancelled';
+
+  // Subscribe to Realtime pool updates
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`pool:${market.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'market_pools',
+          filter: `market_id=eq.${market.id}`,
+        },
+        (payload) => {
+          const row = payload.new as { yes_pool: number; no_pool: number };
+          setPool({
+            yesPool: Number(row.yes_pool),
+            noPool: Number(row.no_pool),
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [market.id]);
+
+  return (
+    <div className="px-4 py-4">
+      {/* Back link */}
+      <a href="/feed" className="mb-4 inline-block text-xs text-muted-foreground hover:text-foreground">
+        &larr; Back to markets
+      </a>
+
+      {/* Question */}
+      <h1 className="mt-2 text-lg font-semibold leading-snug">{market.question}</h1>
+      <p className="mt-1 text-xs text-muted-foreground">
+        by {market.creatorName} &middot; {format(new Date(market.createdAt), 'MMM d, yyyy')}
+      </p>
+
+      {/* Status */}
+      <div className="mt-4">
+        {isResolved && (
+          <div className={`rounded-sm px-3 py-2 text-sm font-medium ${
+            market.resolvedOutcome === 'yes'
+              ? 'bg-green-900/30 text-green-400'
+              : 'bg-red-900/30 text-red-400'
+          }`}>
+            Resolved: {market.resolvedOutcome?.toUpperCase()}
+          </div>
+        )}
+        {isCancelled && (
+          <div className="rounded-sm bg-yellow-900/30 px-3 py-2 text-sm font-medium text-yellow-400">
+            Cancelled — all bets refunded
+          </div>
+        )}
+      </div>
+
+      {/* Odds display */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-sm border border-green-800/40 bg-green-950/20 p-4 text-center">
+          <div className="text-2xl font-bold text-green-400">
+            {Math.round(yesProb)}%
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">YES</div>
+        </div>
+        <div className="rounded-sm border border-red-800/40 bg-red-950/20 p-4 text-center">
+          <div className="text-2xl font-bold text-red-400">
+            {Math.round(noProb)}%
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">NO</div>
+        </div>
+      </div>
+
+      {/* Pool info */}
+      <div className="mt-3 flex justify-between text-xs text-muted-foreground">
+        <span>Pool: {Math.round(pool.yesPool + pool.noPool)} tokens</span>
+        <span>
+          {isOpen ? (
+            <>Closes {formatDistanceToNow(closesAt, { addSuffix: true })}</>
+          ) : isResolved ? (
+            'Resolved'
+          ) : isCancelled ? (
+            'Cancelled'
+          ) : (
+            'Closed'
+          )}
+        </span>
+      </div>
+
+      {/* Bet slip */}
+      {isOpen && (
+        <BetSlip
+          marketId={market.id}
+          yesPool={pool.yesPool}
+          noPool={pool.noPool}
+        />
+      )}
+
+      {/* Resolution criteria */}
+      <div className="mt-6 rounded-sm border border-border bg-card p-4">
+        <h3 className="text-xs font-medium text-muted-foreground">Resolution Criteria</h3>
+        <p className="mt-1 text-sm">{market.resolutionCriteria}</p>
+      </div>
+    </div>
+  );
+}
