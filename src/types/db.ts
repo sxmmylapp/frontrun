@@ -251,6 +251,21 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_market: {
+        Args: {
+          p_admin_id: string
+          p_market_id: string
+          p_outcome: string
+        }
+        Returns: Json
+      }
+      cancel_market: {
+        Args: {
+          p_admin_id: string
+          p_market_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

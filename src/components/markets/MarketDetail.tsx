@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { BetSlip } from './BetSlip';
+import { AdminResolutionPanel } from './AdminResolutionPanel';
 
 type MarketProps = {
   market: {
@@ -21,6 +22,7 @@ type MarketProps = {
     yesPool: number;
     noPool: number;
   };
+  isAdmin?: boolean;
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -29,7 +31,7 @@ function calcProb(yesPool: number, noPool: number): number {
   return (noPool / total) * 100;
 }
 
-export function MarketDetail({ market, initialPool }: MarketProps) {
+export function MarketDetail({ market, initialPool, isAdmin }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
   const yesProb = calcProb(pool.yesPool, pool.noPool);
   const noProb = 100 - yesProb;
@@ -136,6 +138,15 @@ export function MarketDetail({ market, initialPool }: MarketProps) {
           marketId={market.id}
           yesPool={pool.yesPool}
           noPool={pool.noPool}
+        />
+      )}
+
+      {/* Admin resolution panel */}
+      {isAdmin && (
+        <AdminResolutionPanel
+          marketId={market.id}
+          resolutionCriteria={market.resolutionCriteria}
+          status={market.status}
         />
       )}
 

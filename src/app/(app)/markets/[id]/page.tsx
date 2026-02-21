@@ -30,6 +30,18 @@ export default async function MarketPage({
 
   if (!market) return notFound();
 
+  // Check if current user is admin
+  const { data: { user } } = await supabase.auth.getUser();
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+    isAdmin = profile?.is_admin === true;
+  }
+
   const pool = Array.isArray(market.market_pools)
     ? market.market_pools[0]
     : market.market_pools;
@@ -55,6 +67,7 @@ export default async function MarketPage({
         yesPool: Number(pool?.yes_pool ?? 500),
         noPool: Number(pool?.no_pool ?? 500),
       }}
+      isAdmin={isAdmin}
     />
   );
 }
