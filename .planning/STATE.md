@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-19)
+See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
-**Current focus:** All phases complete — ready to deploy
+**Current focus:** v2.0 USD Transactions — defining requirements
 
 ## Current Position
 
-Phase: 5 of 5 (Engagement Layer)
-Plan: All complete
-Status: All 5 phases built and committed
-Last activity: 2026-02-20 — Phase 5 complete (bet history, prize snapshots)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v2.0
+Last activity: 2026-02-21 — Milestone v2.0 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -42,10 +42,12 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Roadmap]: CPMM AMM chosen over LMSR — no tunable `b` parameter, ~50 lines of TypeScript, used by Manifold and Polymarket
-- [Roadmap]: Token ledger is append-only from day one — balance derived from SUM, never a mutable column (prevents race condition retrofit)
-- [Roadmap]: Phase 2 isolates AMM math before DB wiring — precision bugs caught in tests, not in production with real balances
-- [Roadmap]: Phone uniqueness enforced at DB constraint level (not app layer) to prevent multi-account leaderboard gaming
+- [v1.0]: CPMM AMM chosen over LMSR — no tunable `b` parameter, ~50 lines of TypeScript
+- [v1.0]: Token ledger is append-only — balance derived from SUM, never a mutable column
+- [v1.0]: Phone uniqueness enforced at DB constraint level
+- [v2.0]: Stripe for payments — supports Apple Pay / Google Pay via Payment Request API
+- [v2.0]: Token packs at fixed tiers ($5/$10/$20) — simpler than variable amounts
+- [v2.0]: Deposit only, no withdrawals — avoids money transmitter classification
 
 ### Pending Todos
 
@@ -53,12 +55,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1 pre-work]: Verify Twilio Lookup VoIP blocking config (`line_type_intelligence` add-on) before Phase 1 goes to production
-- [Phase 3 pre-planning]: Supabase JS client does not expose raw BEGIN...COMMIT — confirm atomic transaction pattern (RPC/stored procedure vs pg client) before Phase 3 planning
-- [Phase 5 pre-planning]: Multiple-choice AMM normalization (probabilities summing to 1.0 across N pools) is unresolved — design spike needed (this is v2 per REQUIREMENTS.md, tracked for awareness only)
+- [v2.0 pre-planning]: Verify Stripe Payment Request API support for Apple Pay / Google Pay in Supabase + Next.js context
+- [v2.0 pre-planning]: Determine token-to-USD conversion rate for each pack tier
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: All 5 phases complete — ready for deployment
+Last session: 2026-02-21
+Stopped at: Defining v2.0 milestone requirements
 Resume file: None

@@ -2,64 +2,85 @@
 
 ## What This Is
 
-A mobile-first web app that lets people in a local community create and bet on prediction markets about anything. Users get free virtual tokens on signup, odds shift dynamically based on betting volume (Polymarket-style AMM), and top performers on a periodic leaderboard win real USD prizes.
+A mobile-first web app that lets people in a local community create and bet on prediction markets about anything. Users get free virtual tokens on signup and can purchase additional tokens with USD via Apple Pay / Google Pay. Odds shift dynamically based on betting volume (Polymarket-style CPMM AMM), and top performers on a periodic leaderboard win real USD prizes.
 
 ## Core Value
 
 Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
 
+## Current Milestone: v2.0 USD Transactions
+
+**Goal:** Users can purchase token packs with real USD via Apple Pay / Google Pay, powered by Stripe.
+
+**Target features:**
+- Token packs at fixed price tiers ($5, $10, $20)
+- Apple Pay and Google Pay payment via Stripe
+- Purchase history and receipt tracking
+- Token credits applied atomically to the append-only ledger
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Phone/SMS authentication for signup and login — v1.0
+- ✓ Users receive free tokens (1,000) on account creation — v1.0
+- ✓ Users can create binary (Yes/No) markets with a question and resolution date — v1.0
+- ✓ Market odds adjust dynamically based on betting volume (CPMM AMM) — v1.0
+- ✓ Users can place bets on any open market — v1.0
+- ✓ Users can view a feed of active markets — v1.0
+- ✓ Admin can resolve markets (declare winning outcome) — v1.0
+- ✓ Tokens are distributed to winners proportionally after resolution — v1.0
+- ✓ Leaderboard showing top token holders — v1.0
+- ✓ Periodic prize system — top leaderboard performers win USD — v1.0
+- ✓ User can view bet history with profit/loss — v1.0
 
 ### Active
 
-- [ ] Phone/SMS authentication for signup and login
-- [ ] Users receive free tokens on account creation
-- [ ] Users can create binary (Yes/No) markets with a question and resolution date
-- [ ] Users can create multiple-choice markets
-- [ ] Market odds adjust dynamically based on betting volume (AMM)
-- [ ] Users can place bets on any open market
-- [ ] Users can view a feed of active markets
-- [ ] Admin can resolve markets (declare winning outcome)
-- [ ] Tokens are distributed to winners proportionally after resolution
-- [ ] Leaderboard showing top token holders
-- [ ] Periodic prize system — top leaderboard performers win USD
+- [ ] Users can purchase token packs with USD via Apple Pay / Google Pay
+- [ ] Token purchases are processed via Stripe
+- [ ] Purchase history is tracked and viewable
 
 ### Out of Scope
 
-- Real money deposits — tokens are free, no payment processing for buying tokens
+- Cash out / withdrawal — users cannot convert tokens back to USD (keeps regulatory burden low)
 - Native mobile apps — web app only (mobile-first PWA)
-- Automated market resolution — admin resolves manually for v1
+- Automated market resolution — admin resolves manually
 - Formal withdrawal system — prizes paid out informally (Venmo/cash)
-- Moderation system — small trusted group for v1, admin can remove content directly
+- Moderation system — small trusted group, admin can remove content directly
+- Multiple-choice markets — binary covers 90% of use cases, deferred
+- Subscription model — one-time pack purchases only
 
 ## Context
 
 - Target audience is a local community (~10-20 friends initially)
-- Polymarket-style AMM for odds calculation (likely LMSR or CPMM)
-- No regulatory compliance needed — virtual tokens with informal prizes
+- CPMM AMM for odds calculation, implemented with decimal.js for precision
 - Mobile-first is critical — users will access on phones
-- SMS auth via a service like Twilio or similar
+- SMS auth via Twilio
+- Supabase for PostgreSQL, Auth, Realtime
+- Netlify for deployment
+- Free tokens remain on signup — purchasing adds on top
+- Stripe Payment Request API supports Apple Pay and Google Pay natively
 
 ## Constraints
 
-- **Budget**: Low — this is a side project, minimize recurring costs
+- **Budget**: Low — this is a side project, minimize recurring costs (Stripe fees are per-transaction, no monthly cost)
 - **Users**: Small scale (~10-20 initially), no need for heavy infrastructure
 - **Auth**: Phone/SMS based — no email/password
-- **Resolution**: Admin-only for v1 — keeps it simple and trustworthy
+- **Resolution**: Admin-only — keeps it simple and trustworthy
+- **Payments**: Deposit only — no withdrawals, no money transmitter issues
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Virtual tokens (not real money) | Avoids regulatory issues, lowers barrier to entry | — Pending |
-| AMM-based odds | Market-driven pricing is more engaging than fixed odds | — Pending |
-| Admin resolution only | Small trusted group, simplicity over decentralization | — Pending |
-| Phone/SMS auth | Frictionless for mobile users, no passwords to remember | — Pending |
-| Periodic leaderboard prizes | Incentivizes engagement without per-market cash stakes | — Pending |
+| Virtual tokens (not real money) | Avoids regulatory issues, lowers barrier to entry | ✓ Good — worked well for v1 |
+| AMM-based odds (CPMM) | Market-driven pricing is more engaging than fixed odds | ✓ Good |
+| Admin resolution only | Small trusted group, simplicity over decentralization | ✓ Good |
+| Phone/SMS auth | Frictionless for mobile users, no passwords to remember | ✓ Good |
+| Periodic leaderboard prizes | Incentivizes engagement without per-market cash stakes | ✓ Good |
+| Stripe for payments | Industry standard, supports Apple Pay / Google Pay via Payment Request API, no monthly fees | — Pending |
+| Token packs (not variable amounts) | Simpler UX, predefined tiers ($5/$10/$20), fewer edge cases | — Pending |
+| Deposit only (no withdrawals) | Avoids money transmitter classification, keeps compliance minimal | — Pending |
 
 ---
-*Last updated: 2026-02-19 after initialization*
+*Last updated: 2026-02-21 after v2.0 milestone start*
