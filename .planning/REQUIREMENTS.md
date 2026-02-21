@@ -58,8 +58,8 @@ Requirements for milestone v2.0: USD Transactions. Each maps to roadmap phases.
 
 ### Payment Processing
 
-- [ ] **PAY-01**: Stripe processes token pack payments via PaymentIntents API with server-side price enforcement (client never sends dollar amounts)
-- [ ] **PAY-02**: Webhook handler idempotently credits tokens on `payment_intent.succeeded` — tokens are never credited from client-side callbacks
+- [x] **PAY-01**: Stripe processes token pack payments via PaymentIntents API with server-side price enforcement (client never sends dollar amounts)
+- [x] **PAY-02**: Webhook handler idempotently credits tokens on `payment_intent.succeeded` — tokens are never credited from client-side callbacks
 - [x] **PAY-03**: Apple Pay domain is verified for `frontrun.bet` and Express Checkout Element renders Apple Pay on iOS Safari
 - [x] **PAY-04**: Duplicate webhook events do not double-credit tokens (`stripe_events` table with UNIQUE constraint on event ID)
 - [x] **PAY-05**: Token purchase credits are recorded in the append-only ledger with reason `token_purchase`
@@ -116,8 +116,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAY-01 | Phase 7 | Pending |
-| PAY-02 | Phase 7 | Pending |
+| PAY-01 | Phase 7 | Complete |
+| PAY-02 | Phase 7 | Complete |
 | PAY-03 | Phase 6 | Complete |
 | PAY-04 | Phase 6 | Complete |
 | PAY-05 | Phase 6 | Complete |

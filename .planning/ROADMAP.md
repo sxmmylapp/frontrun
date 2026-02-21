@@ -85,7 +85,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Milestone Goal:** Users can purchase token packs with real USD via Apple Pay / Google Pay, powered by Stripe.
 
 - [x] **Phase 6: Payment Infrastructure** - Database schema, Stripe config, Apple Pay domain, and atomic fulfillment RPC (completed 2026-02-21)
-- [ ] **Phase 7: Payment Backend** - PaymentIntent creation endpoint and webhook handler with idempotent token crediting
+- [x] **Phase 7: Payment Backend** - PaymentIntent creation endpoint and webhook handler with idempotent token crediting (completed 2026-02-21)
 - [ ] **Phase 8: Purchase UI** - Token pack selection, Express Checkout Element, Payment Element fallback, and purchase confirmation
 - [ ] **Phase 9: Purchase Integration** - Purchase history, BetSlip buy CTA, and go-live verification
 
@@ -115,10 +115,10 @@ Plans:
   2. When Stripe sends a `payment_intent.succeeded` webhook, the handler verifies the signature, credits tokens to the user's ledger via the atomic RPC, and returns 200
   3. Sending the same webhook event twice does not double-credit tokens — the second call returns 200 but skips fulfillment
   4. The full round-trip is verified with `stripe listen --forward-to` in dev: trigger a test payment, confirm tokens appear in the ledger, confirm the purchase record shows `completed` status
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 07-01: Stripe server SDK, create-intent route handler, webhook route handler, and CLI verification
+- [x] 07-01-PLAN.md — PaymentIntent creation endpoint, Stripe webhook handler, and endpoint verification
 
 ### Phase 8: Purchase UI
 **Goal**: Users can browse token packs, pay with Apple Pay / Google Pay or a card, and see their balance update in real time after purchase
@@ -160,6 +160,6 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 4. Resolution and Leaderboard | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 5. Engagement Layer | v1.0 | 2/2 | Complete | 2026-02-20 |
 | 6. Payment Infrastructure | v2.0 | 1/1 | Complete | 2026-02-21 |
-| 7. Payment Backend | v2.0 | 0/1 | Not started | - |
+| 7. Payment Backend | v2.0 | 1/1 | Complete | 2026-02-21 |
 | 8. Purchase UI | v2.0 | 0/1 | Not started | - |
 | 9. Purchase Integration | v2.0 | 0/1 | Not started | - |
