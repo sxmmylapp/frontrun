@@ -10,29 +10,30 @@ See: .planning/PROJECT.md (updated 2026-02-21)
 ## Current Position
 
 Phase: 6 of 9 (Payment Infrastructure)
-Plan: 0 of 1 in current phase
-Status: Ready to plan
-Last activity: 2026-02-21 — Roadmap created for v2.0 USD Transactions
+Plan: 1 of 1 in current phase
+Status: Phase 6 complete — ready for transition
+Last activity: 2026-02-21 — Completed 06-01 Payment Infrastructure plan
 
-Progress: [██████████░░░░░░░░░░] 50% (12/24 plans across all milestones; v2.0: 0/4)
+Progress: [█████████████░░░░░░░] 54% (13/24 plans across all milestones; v2.0: 1/4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12 (v1.0)
-- Average duration: —
-- Total execution time: — hours
+- Total plans completed: 13 (v1.0: 12, v2.0: 1)
+- Average duration: 7 min (v2.0 only)
+- Total execution time: 7 min (v2.0)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1-5 (v1.0) | 12/12 | — | — |
-| 6-9 (v2.0) | 0/4 | — | — |
+| 6 (v2.0) | 1/1 | 7 min | 7 min |
+| 7-9 (v2.0) | 0/3 | — | — |
 
 **Recent Trend:**
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 7 min (06-01)
+- Trend: Starting v2.0
 
 *Updated after each plan completion*
 
@@ -55,13 +56,14 @@ None yet.
 
 ### Blockers/Concerns
 
-- [v2.0 research]: Apple Pay domain verification can take 24h — register early in Phase 6
+- [RESOLVED] Apple Pay domain verification — registered in Stripe test mode for frontrun.bet + www.frontrun.bet
 - [v2.0 research]: Netlify 10-second serverless timeout — webhook handler must stay lean (< 5s)
-- [v2.0 research]: `token_ledger` CHECK constraint must be migrated BEFORE any payment code deploys
+- [RESOLVED] `token_ledger` CHECK constraint migrated — now accepts 'token_purchase'
 - [v2.0 research]: ToS must cover token non-convertibility before accepting real payments
+- [v2.0 Phase 6]: Apple Pay live-mode domain registration deferred — needs Dashboard setup before go-live
 
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Roadmap created for v2.0 milestone
+Stopped at: Completed 06-01-PLAN.md — Phase 6 complete, ready for verification
 Resume file: None
