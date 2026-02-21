@@ -87,6 +87,7 @@ export default function AdminPrizesPage() {
           ...period,
           entries: snapshots.map((s) => ({
             ...s,
+            is_winner: s.is_winner ?? false,
             display_name: nameMap.get(s.user_id) ?? 'Unknown',
           })),
         });

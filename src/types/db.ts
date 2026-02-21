@@ -12,68 +12,117 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      leaderboard_snapshots: {
+        Row: {
+          balance: number
+          created_at: string | null
+          id: string
+          is_winner: boolean | null
+          period_id: string
+          rank: number
+          user_id: string
+        }
+        Insert: {
+          balance: number
+          created_at?: string | null
+          id?: string
+          is_winner?: boolean | null
+          period_id: string
+          rank: number
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string | null
+          id?: string
+          is_winner?: boolean | null
+          period_id?: string
+          rank?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_snapshots_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "prize_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_snapshots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_pools: {
+        Row: {
+          market_id: string
+          no_pool: number
+          updated_at: string | null
+          yes_pool: number
+        }
+        Insert: {
+          market_id: string
+          no_pool: number
+          updated_at?: string | null
+          yes_pool: number
+        }
+        Update: {
+          market_id?: string
+          no_pool?: number
+          updated_at?: string | null
+          yes_pool?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_pools_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: true
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       markets: {
         Row: {
-          id: string
+          closes_at: string
+          created_at: string | null
           creator_id: string
+          id: string
           question: string
           resolution_criteria: string
-          status: string
-          resolved_outcome: string | null
-          closes_at: string
           resolved_at: string | null
-          created_at: string | null
+          resolved_outcome: string | null
+          status: string
           updated_at: string | null
         }
         Insert: {
-          id?: string
+          closes_at: string
+          created_at?: string | null
           creator_id: string
+          id?: string
           question: string
           resolution_criteria: string
-          status?: string
-          resolved_outcome?: string | null
-          closes_at: string
           resolved_at?: string | null
-          created_at?: string | null
+          resolved_outcome?: string | null
+          status?: string
           updated_at?: string | null
         }
         Update: {
-          id?: string
+          closes_at?: string
+          created_at?: string | null
           creator_id?: string
+          id?: string
           question?: string
           resolution_criteria?: string
-          status?: string
-          resolved_outcome?: string | null
-          closes_at?: string
           resolved_at?: string | null
-          created_at?: string | null
+          resolved_outcome?: string | null
+          status?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -86,64 +135,42 @@ export type Database = {
           },
         ]
       }
-      market_pools: {
-        Row: {
-          market_id: string
-          yes_pool: number
-          no_pool: number
-          updated_at: string | null
-        }
-        Insert: {
-          market_id: string
-          yes_pool: number
-          no_pool: number
-          updated_at?: string | null
-        }
-        Update: {
-          market_id?: string
-          yes_pool?: number
-          no_pool?: number
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "market_pools_market_id_fkey"
-            columns: ["market_id"]
-            isOneToOne: true
-            referencedRelation: "markets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       positions: {
         Row: {
-          id: string
-          user_id: string
-          market_id: string
-          outcome: string
-          shares: number
           cost: number
           created_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
+          id: string
           market_id: string
           outcome: string
           shares: number
+          user_id: string
+        }
+        Insert: {
           cost: number
           created_at?: string | null
+          id?: string
+          market_id: string
+          outcome: string
+          shares: number
+          user_id: string
         }
         Update: {
+          cost?: number
+          created_at?: string | null
           id?: string
-          user_id?: string
           market_id?: string
           outcome?: string
           shares?: number
-          cost?: number
-          created_at?: string | null
+          user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "positions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "positions_user_id_fkey"
             columns: ["user_id"]
@@ -151,11 +178,36 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      prize_periods: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          snapshot_at: string
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          snapshot_at?: string
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          snapshot_at?: string
+          title?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "positions_market_id_fkey"
-            columns: ["market_id"]
+            foreignKeyName: "prize_periods_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "markets"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -184,6 +236,33 @@ export type Database = {
           is_admin?: boolean | null
           phone?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      stripe_events: {
+        Row: {
+          event_id: string
+          event_type: string
+          id: string
+          payment_intent_id: string | null
+          processed_at: string | null
+          status: string | null
+        }
+        Insert: {
+          event_id: string
+          event_type: string
+          id?: string
+          payment_intent_id?: string | null
+          processed_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          event_id?: string
+          event_type?: string
+          id?: string
+          payment_intent_id?: string | null
+          processed_at?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -222,76 +301,43 @@ export type Database = {
           },
         ]
       }
-      prize_periods: {
+      token_purchases: {
         Row: {
-          id: string
-          title: string
-          snapshot_at: string
-          created_by: string
+          amount_cents: number
+          completed_at: string | null
           created_at: string | null
+          id: string
+          status: string
+          stripe_payment_intent_id: string
+          tier: string
+          tokens_credited: number
+          user_id: string
         }
         Insert: {
-          id?: string
-          title: string
-          snapshot_at?: string
-          created_by: string
+          amount_cents: number
+          completed_at?: string | null
           created_at?: string | null
+          id?: string
+          status?: string
+          stripe_payment_intent_id: string
+          tier: string
+          tokens_credited: number
+          user_id: string
         }
         Update: {
-          id?: string
-          title?: string
-          snapshot_at?: string
-          created_by?: string
+          amount_cents?: number
+          completed_at?: string | null
           created_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prize_periods_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      leaderboard_snapshots: {
-        Row: {
-          id: string
-          period_id: string
-          user_id: string
-          rank: number
-          balance: number
-          is_winner: boolean
-          created_at: string | null
-        }
-        Insert: {
           id?: string
-          period_id: string
-          user_id: string
-          rank: number
-          balance: number
-          is_winner?: boolean
-          created_at?: string | null
-        }
-        Update: {
-          id?: string
-          period_id?: string
+          status?: string
+          stripe_payment_intent_id?: string
+          tier?: string
+          tokens_credited?: number
           user_id?: string
-          rank?: number
-          balance?: number
-          is_winner?: boolean
-          created_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "leaderboard_snapshots_period_id_fkey"
-            columns: ["period_id"]
-            isOneToOne: false
-            referencedRelation: "prize_periods"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leaderboard_snapshots_user_id_fkey"
+            foreignKeyName: "token_purchases_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -318,29 +364,30 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_market: {
+        Args: { p_admin_id: string; p_market_id: string }
+        Returns: Json
+      }
+      credit_token_purchase: {
+        Args: {
+          p_payment_intent_id: string
+          p_tokens: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
       generate_display_name: { Args: never; Returns: string }
       place_bet: {
         Args: {
-          p_user_id: string
+          p_amount: number
           p_market_id: string
           p_outcome: string
-          p_amount: number
+          p_user_id: string
         }
         Returns: Json
       }
       resolve_market: {
-        Args: {
-          p_admin_id: string
-          p_market_id: string
-          p_outcome: string
-        }
-        Returns: Json
-      }
-      cancel_market: {
-        Args: {
-          p_admin_id: string
-          p_market_id: string
-        }
+        Args: { p_admin_id: string; p_market_id: string; p_outcome: string }
         Returns: Json
       }
     }
@@ -471,9 +518,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
