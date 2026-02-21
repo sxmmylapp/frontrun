@@ -222,6 +222,83 @@ export type Database = {
           },
         ]
       }
+      prize_periods: {
+        Row: {
+          id: string
+          title: string
+          snapshot_at: string
+          created_by: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          snapshot_at?: string
+          created_by: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          snapshot_at?: string
+          created_by?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prize_periods_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_snapshots: {
+        Row: {
+          id: string
+          period_id: string
+          user_id: string
+          rank: number
+          balance: number
+          is_winner: boolean
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          period_id: string
+          user_id: string
+          rank: number
+          balance: number
+          is_winner?: boolean
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          period_id?: string
+          user_id?: string
+          rank?: number
+          balance?: number
+          is_winner?: boolean
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_snapshots_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "prize_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_snapshots_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       user_balances: {
