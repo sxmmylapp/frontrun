@@ -84,7 +84,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Milestone Goal:** Users can purchase token packs with real USD via Apple Pay / Google Pay, powered by Stripe.
 
-- [ ] **Phase 6: Payment Infrastructure** - Database schema, Stripe config, Apple Pay domain, and atomic fulfillment RPC
+- [x] **Phase 6: Payment Infrastructure** - Database schema, Stripe config, Apple Pay domain, and atomic fulfillment RPC (completed 2026-02-21)
 - [ ] **Phase 7: Payment Backend** - PaymentIntent creation endpoint and webhook handler with idempotent token crediting
 - [ ] **Phase 8: Purchase UI** - Token pack selection, Express Checkout Element, Payment Element fallback, and purchase confirmation
 - [ ] **Phase 9: Purchase Integration** - Purchase history, BetSlip buy CTA, and go-live verification
@@ -104,7 +104,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Database migration, Stripe packages, tier constants, SDK singletons, Apple Pay domain registration, and middleware update
+- [x] 06-01-PLAN.md — Database migration, Stripe packages, tier constants, SDK singletons, Apple Pay domain registration, and middleware update
 
 ### Phase 7: Payment Backend
 **Goal**: Server-side payment endpoints are working and verified — a PaymentIntent can be created for any tier with server-enforced pricing, and the webhook handler idempotently credits tokens on successful payment
@@ -159,7 +159,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 3. Core Loop | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 4. Resolution and Leaderboard | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 5. Engagement Layer | v1.0 | 2/2 | Complete | 2026-02-20 |
-| 6. Payment Infrastructure | v2.0 | 0/1 | In Progress | - |
+| 6. Payment Infrastructure | v2.0 | 1/1 | Complete | 2026-02-21 |
 | 7. Payment Backend | v2.0 | 0/1 | Not started | - |
 | 8. Purchase UI | v2.0 | 0/1 | Not started | - |
 | 9. Purchase Integration | v2.0 | 0/1 | Not started | - |
