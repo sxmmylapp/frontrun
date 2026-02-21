@@ -25,27 +25,36 @@ export function BetSlip({ marketId, yesPool, noPool }: BetSlipProps) {
 
   const numAmount = Number(amount) || 0;
 
+  // Max bet = 10% of pool
+  const maxBet = Math.floor((yesPool + noPool) * 0.10 * 100) / 100;
+  const effectiveMax = Math.min(maxBet, balance);
+  const exceedsMax = numAmount > maxBet;
+
   // Preview payout using the CPMM math
   const preview = useMemo(() => {
-    if (numAmount <= 0) return null;
+    if (numAmount <= 0 || numAmount > maxBet) return null;
     try {
       const pool = {
         yesPool: new Decimal(yesPool),
         noPool: new Decimal(noPool),
       };
       const result = previewTrade(pool, outcome, new Decimal(numAmount));
+      const tradeResult = outcome === 'yes'
+        ? { newYes: new Decimal(yesPool).sub(result.sharesReceived), newNo: new Decimal(noPool).add(numAmount) }
+        : { newYes: new Decimal(yesPool).add(numAmount), newNo: new Decimal(noPool).sub(result.sharesReceived) };
+      const maxPayout = tradeResult.newYes.add(tradeResult.newNo).toDecimalPlaces(2).toNumber();
       return {
         shares: result.sharesReceived.toDecimalPlaces(2).toNumber(),
-        payout: result.sharesReceived.toDecimalPlaces(2).toNumber(), // Each winning share pays 1 token
+        maxPayout,
         impliedProb: result.impliedProbability.mul(100).toDecimalPlaces(1).toNumber(),
       };
     } catch {
       return null;
     }
-  }, [numAmount, outcome, yesPool, noPool]);
+  }, [numAmount, outcome, yesPool, noPool, maxBet]);
 
   async function handleBet() {
-    if (numAmount <= 0 || numAmount > balance) return;
+    if (numAmount <= 0 || numAmount > balance || numAmount > maxBet) return;
 
     setLoading(true);
     const result = await placeBet({
@@ -103,18 +112,23 @@ export function BetSlip({ marketId, yesPool, noPool }: BetSlipProps) {
             onChange={(e) => setAmount(e.target.value)}
             className="rounded-sm"
             min={1}
-            max={balance}
+            max={effectiveMax}
           />
           <button
-            onClick={() => setAmount(String(balance))}
+            onClick={() => setAmount(String(effectiveMax))}
             className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
           >
             Max
           </button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Balance: {balance.toLocaleString()} tokens
+          Balance: {balance.toLocaleString()} tokens · Max bet: {maxBet.toLocaleString()} tokens
         </p>
+        {exceedsMax && numAmount > 0 && (
+          <p className="mt-1 text-xs text-red-400">
+            Exceeds 10% pool limit ({maxBet.toLocaleString()} tokens)
+          </p>
+        )}
       </div>
 
       {/* Payout preview */}
@@ -125,8 +139,8 @@ export function BetSlip({ marketId, yesPool, noPool }: BetSlipProps) {
             <span>{preview.shares}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Potential payout</span>
-            <span className="font-medium">{preview.payout} tokens</span>
+            <span className="text-muted-foreground">Max payout (if sole winner)</span>
+            <span className="font-medium">{preview.maxPayout} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">New probability</span>
@@ -139,7 +153,7 @@ export function BetSlip({ marketId, yesPool, noPool }: BetSlipProps) {
       <Button
         className="mt-3 w-full rounded-sm"
         onClick={handleBet}
-        disabled={loading || numAmount <= 0 || numAmount > balance}
+        disabled={loading || numAmount <= 0 || numAmount > balance || numAmount > maxBet}
       >
         {loading ? 'Placing bet...' : `Bet ${numAmount || 0} on ${outcome.toUpperCase()}`}
       </Button>

@@ -117,8 +117,40 @@ export async function placeBet(input: {
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Call the atomic place_bet RPC
     const admin = createAdminClient();
+
+    // Early validation: fetch market + pool for creator check and max bet
+    const { data: marketData, error: marketError } = await admin
+      .from('markets')
+      .select('creator_id, market_pools(yes_pool, no_pool)')
+      .eq('id', input.marketId)
+      .single();
+
+    if (marketError || !marketData) {
+      console.error(`[${ts}] placeBet ERROR: failed to fetch market - ${marketError?.message}`);
+      return { success: false, error: 'Market not found' };
+    }
+
+    // Creator check
+    if (marketData.creator_id === user.id) {
+      console.warn(`[${ts}] placeBet WARN: creator ${user.id} tried to bet on own market ${input.marketId}`);
+      return { success: false, error: 'Cannot bet on a market you created' };
+    }
+
+    // Max bet check (10% of pool)
+    const pool = Array.isArray(marketData.market_pools)
+      ? marketData.market_pools[0]
+      : marketData.market_pools;
+    if (pool) {
+      const totalPool = Number(pool.yes_pool) + Number(pool.no_pool);
+      const maxBet = totalPool * 0.10;
+      if (input.amount > maxBet) {
+        console.warn(`[${ts}] placeBet WARN: user ${user.id} bet ${input.amount} exceeds max ${maxBet.toFixed(2)} in market ${input.marketId}`);
+        return { success: false, error: `Bet too large — max is 10% of pool (${maxBet.toFixed(2)} tokens)` };
+      }
+    }
+
+    // Call the atomic place_bet RPC
     const { data, error } = await admin.rpc('place_bet', {
       p_user_id: user.id,
       p_market_id: input.marketId,

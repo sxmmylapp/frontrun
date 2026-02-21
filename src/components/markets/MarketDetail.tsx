@@ -17,12 +17,14 @@ type MarketProps = {
     resolvedAt: string | null;
     createdAt: string;
     creatorName: string;
+    creatorId: string;
   };
   initialPool: {
     yesPool: number;
     noPool: number;
   };
   isAdmin?: boolean;
+  currentUserId: string | null;
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -31,7 +33,7 @@ function calcProb(yesPool: number, noPool: number): number {
   return (noPool / total) * 100;
 }
 
-export function MarketDetail({ market, initialPool, isAdmin }: MarketProps) {
+export function MarketDetail({ market, initialPool, isAdmin, currentUserId }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
   const yesProb = calcProb(pool.yesPool, pool.noPool);
   const noProb = 100 - yesProb;
@@ -133,12 +135,17 @@ export function MarketDetail({ market, initialPool, isAdmin }: MarketProps) {
       </div>
 
       {/* Bet slip */}
-      {isOpen && (
+      {isOpen && currentUserId && currentUserId !== market.creatorId && (
         <BetSlip
           marketId={market.id}
           yesPool={pool.yesPool}
           noPool={pool.noPool}
         />
+      )}
+      {isOpen && currentUserId && currentUserId === market.creatorId && (
+        <div className="mt-4 rounded-sm border border-yellow-800/40 bg-yellow-950/20 px-4 py-3 text-sm text-yellow-400">
+          You created this market — you cannot place bets on it.
+        </div>
       )}
 
       {/* Admin resolution panel */}

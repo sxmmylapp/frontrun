@@ -62,12 +62,14 @@ export default async function MarketPage({
         resolvedAt: market.resolved_at,
         createdAt: market.created_at ?? new Date().toISOString(),
         creatorName: creator?.display_name ?? 'Unknown',
+        creatorId: market.creator_id,
       }}
       initialPool={{
         yesPool: Number(pool?.yes_pool ?? 500),
         noPool: Number(pool?.no_pool ?? 500),
       }}
       isAdmin={isAdmin}
+      currentUserId={user?.id ?? null}
     />
   );
 }

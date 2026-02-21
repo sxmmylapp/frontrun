@@ -73,13 +73,16 @@ SUPABASE_SERVICE_ROLE_KEY       # Admin key (server-only, never exposed to clien
 
 ## Database
 
-Migrations in `supabase/migrations/` (00001–00004). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `prize_period_entries`, `prize_winners`. Views: `user_balances`. RLS enabled on all tables.
+Migrations in `supabase/migrations/` (00001–00004). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `leaderboard_snapshots`. Views: `user_balances`. RLS enabled on all tables. Generated types in `src/types/db.ts`.
 
 ## Conventions
 
-- Server actions go in `src/lib/<domain>/actions.ts`
+- Server actions go in `src/lib/<domain>/actions.ts`; admin-only actions in `src/lib/<domain>/admin-actions.ts`
 - Components use `'use client'` directive only when they need interactivity/hooks
 - UI primitives live in `src/components/ui/` (shadcn), domain components in `src/components/<domain>/`
+- Zod is imported as `import { z } from 'zod/v4'` (v4 subpath export)
 - Phone validation: E.164 format (+1, 8-15 digits)
 - Token ledger reasons: `signup_bonus`, `bet_placed`, `resolution_payout`, `market_cancelled_refund`, `adjustment`
+- Admin authorization: check `profiles.is_admin` flag via admin client before privileged operations
+- New markets are seeded with 1000 tokens of initial liquidity (500 YES / 500 NO), house-funded
 - Version injected at build time via `NEXT_PUBLIC_APP_VERSION` from `package.json`
