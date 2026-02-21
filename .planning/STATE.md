@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
-**Current focus:** Phase 6 — Payment Infrastructure
+**Current focus:** Phase 7 — Payment Backend
 
 ## Current Position
 
-Phase: 6 of 9 (Payment Infrastructure)
-Plan: 1 of 1 in current phase
-Status: Phase 6 complete — ready for transition
-Last activity: 2026-02-21 — Completed 06-01 Payment Infrastructure plan
+Phase: 7 of 9 (Payment Backend)
+Plan: 0 of 1 in current phase
+Status: Ready to plan
+Last activity: 2026-02-21 — Phase 6 complete, transitioning to Phase 7
 
 Progress: [█████████████░░░░░░░] 54% (13/24 plans across all milestones; v2.0: 1/4)
 
@@ -49,6 +49,8 @@ Recent decisions affecting current work:
 - [v2.0]: Token packs at fixed tiers ($5/$10/$20) — simpler than variable amounts
 - [v2.0]: Deposit only, no withdrawals — avoids money transmitter classification
 - [v2.0]: Webhook-only fulfillment — tokens credited exclusively via webhook, never client-side
+- [Phase 6]: Server-authoritative pricing — client sends tier key, server looks up amount
+- [Phase 6]: Idempotent credit_token_purchase RPC — row lock prevents double-credit
 
 ### Pending Todos
 
@@ -56,14 +58,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [RESOLVED] Apple Pay domain verification — registered in Stripe test mode for frontrun.bet + www.frontrun.bet
 - [v2.0 research]: Netlify 10-second serverless timeout — webhook handler must stay lean (< 5s)
-- [RESOLVED] `token_ledger` CHECK constraint migrated — now accepts 'token_purchase'
 - [v2.0 research]: ToS must cover token non-convertibility before accepting real payments
-- [v2.0 Phase 6]: Apple Pay live-mode domain registration deferred — needs Dashboard setup before go-live
+- [Phase 6]: Apple Pay live-mode domain registration deferred — needs Dashboard setup before go-live (Phase 9)
 
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 06-01-PLAN.md — Phase 6 complete, ready for verification
+Stopped at: Phase 6 complete, ready to plan Phase 7
 Resume file: None

@@ -78,9 +78,11 @@ Users can create a market on any topic and bet tokens on the outcome — the cor
 | Admin resolution only | Small trusted group, simplicity over decentralization | ✓ Good |
 | Phone/SMS auth | Frictionless for mobile users, no passwords to remember | ✓ Good |
 | Periodic leaderboard prizes | Incentivizes engagement without per-market cash stakes | ✓ Good |
-| Stripe for payments | Industry standard, supports Apple Pay / Google Pay via Payment Request API, no monthly fees | — Pending |
-| Token packs (not variable amounts) | Simpler UX, predefined tiers ($5/$10/$20), fewer edge cases | — Pending |
+| Stripe for payments | Industry standard, supports Apple Pay / Google Pay via Payment Request API, no monthly fees | ✓ Phase 6 — infra in place |
+| Token packs (not variable amounts) | Simpler UX, predefined tiers ($5/$10/$20), fewer edge cases | ✓ Phase 6 — tiers defined |
 | Deposit only (no withdrawals) | Avoids money transmitter classification, keeps compliance minimal | — Pending |
+| Server-authoritative pricing | Client sends tier key only, server looks up amount — prevents price manipulation | ✓ Phase 6 |
+| Idempotent token crediting RPC | credit_token_purchase uses row lock + status check to prevent double-credit on webhook replay | ✓ Phase 6 |
 
 ---
-*Last updated: 2026-02-21 after v2.0 milestone start*
+*Last updated: 2026-02-21 after Phase 6*
