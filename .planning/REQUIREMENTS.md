@@ -116,24 +116,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAY-01 | TBD | Pending |
-| PAY-02 | TBD | Pending |
-| PAY-03 | TBD | Pending |
-| PAY-04 | TBD | Pending |
-| PAY-05 | TBD | Pending |
-| PAY-06 | TBD | Pending |
-| PURC-01 | TBD | Pending |
-| PURC-02 | TBD | Pending |
-| PURC-03 | TBD | Pending |
-| PURC-04 | TBD | Pending |
-| PURC-05 | TBD | Pending |
-| PURC-06 | TBD | Pending |
+| PAY-01 | Phase 7 | Pending |
+| PAY-02 | Phase 7 | Pending |
+| PAY-03 | Phase 6 | Pending |
+| PAY-04 | Phase 6 | Pending |
+| PAY-05 | Phase 6 | Pending |
+| PAY-06 | Phase 6 | Pending |
+| PURC-01 | Phase 8 | Pending |
+| PURC-02 | Phase 8 | Pending |
+| PURC-03 | Phase 8 | Pending |
+| PURC-04 | Phase 8 | Pending |
+| PURC-05 | Phase 9 | Pending |
+| PURC-06 | Phase 9 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12
+- Mapped to phases: 12
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-21*
-*Last updated: 2026-02-21 after v2.0 milestone definition*
+*Last updated: 2026-02-21 after v2.0 roadmap creation*
