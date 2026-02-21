@@ -71,8 +71,8 @@ Requirements for milestone v2.0: USD Transactions. Each maps to roadmap phases.
 - [x] **PURC-02**: User can pay via Apple Pay or Google Pay through the Express Checkout Element
 - [x] **PURC-03**: User can pay via card entry through the Payment Element fallback when no wallet is available
 - [x] **PURC-04**: User sees a success confirmation and their token balance animates up in real-time after purchase
-- [ ] **PURC-05**: User can view their purchase history on the profile page showing date, USD amount, and tokens received
-- [ ] **PURC-06**: User sees a "Buy more tokens" CTA in the BetSlip when they have insufficient balance to place a bet
+- [x] **PURC-05**: User can view their purchase history on the profile page showing date, USD amount, and tokens received
+- [x] **PURC-06**: User sees a "Buy more tokens" CTA in the BetSlip when they have insufficient balance to place a bet
 
 ## Future Requirements
 
@@ -126,8 +126,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PURC-02 | Phase 8 | Complete |
 | PURC-03 | Phase 8 | Complete |
 | PURC-04 | Phase 8 | Complete |
-| PURC-05 | Phase 9 | Pending |
-| PURC-06 | Phase 9 | Pending |
+| PURC-05 | Phase 9 | Complete |
+| PURC-06 | Phase 9 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 12 total

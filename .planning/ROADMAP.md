@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-5 (shipped 2026-02-20)
-- 🚧 **v2.0 USD Transactions** - Phases 6-9 (in progress)
+- **v2.0 USD Transactions** - Phases 6-9 (shipped 2026-02-21)
 
 ## Phases
 
@@ -80,14 +80,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 </details>
 
-### 🚧 v2.0 USD Transactions (In Progress)
+### v2.0 USD Transactions (Complete)
 
 **Milestone Goal:** Users can purchase token packs with real USD via Apple Pay / Google Pay, powered by Stripe.
 
 - [x] **Phase 6: Payment Infrastructure** - Database schema, Stripe config, Apple Pay domain, and atomic fulfillment RPC (completed 2026-02-21)
 - [x] **Phase 7: Payment Backend** - PaymentIntent creation endpoint and webhook handler with idempotent token crediting (completed 2026-02-21)
 - [x] **Phase 8: Purchase UI** - Token pack selection, Express Checkout Element, Payment Element fallback, and purchase confirmation (completed 2026-02-21)
-- [ ] **Phase 9: Purchase Integration** - Purchase history, BetSlip buy CTA, and go-live verification
+- [x] **Phase 9: Purchase Integration** - Purchase history, BetSlip buy CTA, and go-live verification (completed 2026-02-21)
 
 ## Phase Details
 
@@ -142,10 +142,10 @@ Plans:
   1. User can view their purchase history on the profile page showing date, USD amount, and tokens received for each completed purchase
   2. When a user tries to place a bet but has insufficient tokens, the BetSlip shows a "Buy more tokens" CTA that links to the `/buy` page
   3. A real $5 purchase on `frontrun.bet` with a live Stripe key completes end-to-end: payment succeeds, tokens are credited to the ledger, purchase appears in history, and the Stripe Dashboard shows successful delivery
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 09-01: Purchase history component, BetSlip insufficient-balance CTA, and go-live verification
+- [x] 09-01-PLAN.md — Purchase history on profile, BetSlip insufficient-balance CTA
 
 ## Progress
 
@@ -162,4 +162,4 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 6. Payment Infrastructure | v2.0 | 1/1 | Complete | 2026-02-21 |
 | 7. Payment Backend | v2.0 | 1/1 | Complete | 2026-02-21 |
 | 8. Purchase UI | v2.0 | 1/1 | Complete | 2026-02-21 |
-| 9. Purchase Integration | v2.0 | 0/1 | Not started | - |
+| 9. Purchase Integration | v2.0 | 1/1 | Complete | 2026-02-21 |

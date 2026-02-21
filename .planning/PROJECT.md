@@ -36,9 +36,9 @@ Users can create a market on any topic and bet tokens on the outcome — the cor
 
 ### Active
 
-- [ ] Users can purchase token packs with USD via Apple Pay / Google Pay
-- [ ] Token purchases are processed via Stripe
-- [ ] Purchase history is tracked and viewable
+- [x] Users can purchase token packs with USD via Apple Pay / Google Pay
+- [x] Token purchases are processed via Stripe
+- [x] Purchase history is tracked and viewable
 
 ### Out of Scope
 
