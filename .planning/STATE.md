@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 2 — AMM Core
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation)
-Plan: 0 of 3 in current phase
-Status: Planned — ready to execute
-Last activity: 2026-02-19 — Phase 1 planned (3 plans in 2 waves), verified, committed
+Phase: 2 of 5 (AMM Core)
+Plan: 0 of 1 in current phase
+Status: Ready to plan
+Last activity: 2026-02-20 — Phase 1 executed (3/3 plans complete)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -59,6 +59,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: Phase 1 planned and verified — ready to run /gsd:execute-phase 1
+Last session: 2026-02-20
+Stopped at: Phase 1 complete — advancing to Phase 2
 Resume file: None
