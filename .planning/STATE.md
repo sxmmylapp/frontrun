@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
-**Current focus:** Phase 2 — AMM Core
+**Current focus:** Phase 3 — Core Loop
 
 ## Current Position
 
-Phase: 2 of 5 (AMM Core)
-Plan: 0 of 1 in current phase
-Status: Ready to plan
-Last activity: 2026-02-20 — Phase 1 executed (3/3 plans complete)
+Phase: 3 of 5 (Core Loop)
+Plan: 0 of 3 in current phase
+Status: Ready to execute
+Last activity: 2026-02-20 — Phase 2 complete (CPMM AMM, 27 tests passing)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
