@@ -101,10 +101,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The `token_ledger` CHECK constraint accepts `token_purchase` as a valid reason — an INSERT with that reason succeeds
   4. The `credit_token_purchase` RPC exists and atomically credits tokens to the ledger, updates purchase status, and respects idempotency (calling it twice with the same purchase does not double-credit)
   5. Apple Pay domain verification file is accessible at `https://frontrun.bet/.well-known/apple-developer-merchantid-domain-association` and the domain is registered in Stripe Dashboard
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 06-01: Database migration, Stripe packages, environment config, and Apple Pay domain registration
+- [ ] 06-01-PLAN.md — Database migration, Stripe packages, tier constants, SDK singletons, Apple Pay domain registration, and middleware update
 
 ### Phase 7: Payment Backend
 **Goal**: Server-side payment endpoints are working and verified — a PaymentIntent can be created for any tier with server-enforced pricing, and the webhook handler idempotently credits tokens on successful payment
@@ -159,7 +159,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9
 | 3. Core Loop | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 4. Resolution and Leaderboard | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 5. Engagement Layer | v1.0 | 2/2 | Complete | 2026-02-20 |
-| 6. Payment Infrastructure | v2.0 | 0/1 | Not started | - |
+| 6. Payment Infrastructure | v2.0 | 0/1 | In Progress | - |
 | 7. Payment Backend | v2.0 | 0/1 | Not started | - |
 | 8. Purchase UI | v2.0 | 0/1 | Not started | - |
 | 9. Purchase Integration | v2.0 | 0/1 | Not started | - |
