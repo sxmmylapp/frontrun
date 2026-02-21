@@ -14,9 +14,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - SMS auth, free token grant, token balance display, and append-only ledger
 - [x] **Phase 2: AMM Core** - CPMM math isolated, unit-tested, and precision-verified before touching the DB
-- [ ] **Phase 3: Core Loop** - Market creation, market feed, bet placement with live odds, bet slip preview
-- [ ] **Phase 4: Resolution and Leaderboard** - Admin resolves markets, winners paid out, leaderboard live
-- [ ] **Phase 5: Engagement Layer** - Bet history, periodic prize system, and admin prize tooling
+- [x] **Phase 3: Core Loop** - Market creation, market feed, bet placement with live odds, bet slip preview
+- [x] **Phase 4: Resolution and Leaderboard** - Admin resolves markets, winners paid out, leaderboard live
+- [x] **Phase 5: Engagement Layer** - Bet history, periodic prize system, and admin prize tooling
 
 ## Phase Details
 
@@ -107,6 +107,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete ✓ | 2026-02-20 |
 | 2. AMM Core | 1/1 | Complete ✓ | 2026-02-20 |
-| 3. Core Loop | 0/3 | Not started | - |
-| 4. Resolution and Leaderboard | 0/3 | Not started | - |
-| 5. Engagement Layer | 0/2 | Not started | - |
+| 3. Core Loop | 3/3 | Complete ✓ | 2026-02-20 |
+| 4. Resolution and Leaderboard | 3/3 | Complete ✓ | 2026-02-20 |
+| 5. Engagement Layer | 2/2 | Complete ✓ | 2026-02-20 |
