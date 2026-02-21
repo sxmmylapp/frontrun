@@ -1,60 +1,82 @@
 # Requirements: Prediction Market
 
-**Defined:** 2026-02-19
+**Defined:** 2026-02-21
 **Core Value:** Users can create a market on any topic and bet tokens on the outcome — the core prediction loop must be fast, intuitive, and fun.
 
-## v1 Requirements
+## v1.0 Requirements (Validated)
 
-Requirements for initial release. Each maps to roadmap phases.
+All v1.0 requirements shipped and validated on 2026-02-20.
 
 ### Authentication
 
-- [ ] **AUTH-01**: User can sign up with phone number via SMS OTP
-- [ ] **AUTH-02**: User can log in with phone number via SMS OTP
-- [ ] **AUTH-03**: User session persists across browser refresh
-- [ ] **AUTH-04**: Phone number is unique per account (prevents multi-accounting)
+- [x] **AUTH-01**: User can sign up with phone number via SMS OTP
+- [x] **AUTH-02**: User can log in with phone number via SMS OTP
+- [x] **AUTH-03**: User session persists across browser refresh
+- [x] **AUTH-04**: Phone number is unique per account (prevents multi-accounting)
 
 ### Token Economy
 
-- [ ] **TOKN-01**: User receives free tokens (1,000) on account creation
-- [ ] **TOKN-02**: User can see their current token balance persistently in the UI
-- [ ] **TOKN-03**: Token balance updates in real-time after placing a bet
-- [ ] **TOKN-04**: Winning bettors receive tokens proportionally after market resolution
-- [ ] **TOKN-05**: Token transactions are recorded in an append-only ledger for auditability
+- [x] **TOKN-01**: User receives free tokens (1,000) on account creation
+- [x] **TOKN-02**: User can see their current token balance persistently in the UI
+- [x] **TOKN-03**: Token balance updates in real-time after placing a bet
+- [x] **TOKN-04**: Winning bettors receive tokens proportionally after market resolution
+- [x] **TOKN-05**: Token transactions are recorded in an append-only ledger for auditability
 
 ### Markets
 
-- [ ] **MRKT-01**: User can create a binary (Yes/No) market with a question and resolution date
-- [ ] **MRKT-02**: Market creation requires clear resolution criteria
-- [ ] **MRKT-03**: User can browse a feed of all open markets
-- [ ] **MRKT-04**: User can view a market detail page with current Yes/No odds and bet volumes
-- [ ] **MRKT-05**: Market detail page shows expiry countdown ("closes in X days")
-- [ ] **MRKT-06**: Markets transition through states: open → closed → resolved
+- [x] **MRKT-01**: User can create a binary (Yes/No) market with a question and resolution date
+- [x] **MRKT-02**: Market creation requires clear resolution criteria
+- [x] **MRKT-03**: User can browse a feed of all open markets
+- [x] **MRKT-04**: User can view a market detail page with current Yes/No odds and bet volumes
+- [x] **MRKT-05**: Market detail page shows expiry countdown ("closes in X days")
+- [x] **MRKT-06**: Markets transition through states: open → closed → resolved
 
 ### Betting
 
-- [ ] **BET-01**: User can place a bet (Yes or No) on any open market using tokens
-- [ ] **BET-02**: Odds adjust dynamically via CPMM AMM after each bet
-- [ ] **BET-03**: User sees a bet slip with projected payout before confirming
-- [ ] **BET-04**: Bet placement is atomic (server-side, transactional, no partial state)
+- [x] **BET-01**: User can place a bet (Yes or No) on any open market using tokens
+- [x] **BET-02**: Odds adjust dynamically via CPMM AMM after each bet
+- [x] **BET-03**: User sees a bet slip with projected payout before confirming
+- [x] **BET-04**: Bet placement is atomic (server-side, transactional, no partial state)
 
 ### Administration
 
-- [ ] **ADMN-01**: Admin can resolve a market by selecting the winning outcome
-- [ ] **ADMN-02**: Market resolution triggers automatic payout to all winning bettors in a single atomic transaction
-- [ ] **ADMN-03**: Admin can void/cancel a market (refund all bettors)
+- [x] **ADMN-01**: Admin can resolve a market by selecting the winning outcome
+- [x] **ADMN-02**: Market resolution triggers automatic payout to all winning bettors in a single atomic transaction
+- [x] **ADMN-03**: Admin can void/cancel a market (refund all bettors)
 
 ### Leaderboard & Prizes
 
-- [ ] **LEAD-01**: User can view a leaderboard ranked by current token balance
-- [ ] **LEAD-02**: Leaderboard shows rank, display name, and token balance
-- [ ] **LEAD-03**: User can view their bet history (markets bet on, outcome, profit/loss)
-- [ ] **LEAD-04**: Periodic prize system tracks leaderboard snapshots per period
-- [ ] **LEAD-05**: Admin can trigger a prize period snapshot and record winners
+- [x] **LEAD-01**: User can view a leaderboard ranked by current token balance
+- [x] **LEAD-02**: Leaderboard shows rank, display name, and token balance
+- [x] **LEAD-03**: User can view their bet history (markets bet on, outcome, profit/loss)
+- [x] **LEAD-04**: Periodic prize system tracks leaderboard snapshots per period
+- [x] **LEAD-05**: Admin can trigger a prize period snapshot and record winners
 
-## v2 Requirements
+## v2.0 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Requirements for milestone v2.0: USD Transactions. Each maps to roadmap phases.
+
+### Payment Processing
+
+- [ ] **PAY-01**: Stripe processes token pack payments via PaymentIntents API with server-side price enforcement (client never sends dollar amounts)
+- [ ] **PAY-02**: Webhook handler idempotently credits tokens on `payment_intent.succeeded` — tokens are never credited from client-side callbacks
+- [ ] **PAY-03**: Apple Pay domain is verified for `frontrun.bet` and Express Checkout Element renders Apple Pay on iOS Safari
+- [ ] **PAY-04**: Duplicate webhook events do not double-credit tokens (`stripe_events` table with UNIQUE constraint on event ID)
+- [ ] **PAY-05**: Token purchase credits are recorded in the append-only ledger with reason `token_purchase`
+- [ ] **PAY-06**: Purchase records are stored with Stripe PaymentIntent ID, pack tier, USD amount in cents, and fulfillment status
+
+### Token Purchase UX
+
+- [ ] **PURC-01**: User can select from 3 token packs: $5/500 tokens, $10/1,100 tokens (+10% bonus), $20/2,400 tokens (+20% bonus)
+- [ ] **PURC-02**: User can pay via Apple Pay or Google Pay through the Express Checkout Element
+- [ ] **PURC-03**: User can pay via card entry through the Payment Element fallback when no wallet is available
+- [ ] **PURC-04**: User sees a success confirmation and their token balance animates up in real-time after purchase
+- [ ] **PURC-05**: User can view their purchase history on the profile page showing date, USD amount, and tokens received
+- [ ] **PURC-06**: User sees a "Buy more tokens" CTA in the BetSlip when they have insufficient balance to place a bet
+
+## Future Requirements
+
+Deferred to future releases. Tracked but not in current roadmap.
 
 ### Markets
 
@@ -67,17 +89,26 @@ Deferred to future release. Tracked but not in current roadmap.
 - **SOCL-02**: User profile shows performance stats and calibration score
 - **SOCL-03**: Push notifications for market close and resolution events
 
+### Purchase Enhancements
+
+- **PURC-07**: Email receipts sent after purchase (requires email collection)
+- **PURC-08**: Low-balance nudge banner when tokens drop below threshold
+- **PURC-09**: BottomNav "Buy" link for persistent purchase access
+
 ## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Real money deposits/withdrawals | Triggers gambling regulation; virtual tokens keep it casual and legal |
-| Native iOS/Android apps | PWA sufficient for 10-20 users; revisit at 500+ |
-| Automated market resolution | Ambiguous questions can't be auto-resolved; admin resolution takes seconds at this scale |
-| User-to-user token transfers | Enables gaming/manipulation; undermines leaderboard integrity |
-| Order book / limit orders | Requires order matching engine; AMM handles all trades instantly |
-| Full moderation system | Admin can delete content directly at this scale; no formal queue needed |
-| Complex market types (numeric range, weighted) | Binary covers 90% of community use cases |
+| Token withdrawal / cash-out | Triggers money transmitter classification under FinCEN |
+| Variable purchase amounts | Edge cases with no benefit at fixed-pack scale |
+| Subscription / auto-refill | Overkill for 10-20 users; recurring billing complexity unjustified |
+| Custom card number input | Increases PCI scope; Stripe Elements handle PCI |
+| Stripe Checkout hosted page | Redirects user away from app; breaks mobile-first context |
+| Referral bonuses on purchase | Abuse vectors outweigh benefit at 10-20 user scale |
+| Refund self-service | Opens abuse (buy, bet, lose, refund); admin handles manually via Stripe Dashboard |
+| Native iOS/Android apps | PWA sufficient for current scale |
 
 ## Traceability
 
@@ -85,39 +116,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| TOKN-01 | Phase 1 | Pending |
-| TOKN-02 | Phase 1 | Pending |
-| TOKN-05 | Phase 1 | Pending |
-| BET-02 | Phase 2 | Pending |
-| TOKN-03 | Phase 2 | Pending |
-| MRKT-01 | Phase 3 | Pending |
-| MRKT-02 | Phase 3 | Pending |
-| MRKT-03 | Phase 3 | Pending |
-| MRKT-04 | Phase 3 | Pending |
-| MRKT-05 | Phase 3 | Pending |
-| MRKT-06 | Phase 3 | Pending |
-| BET-01 | Phase 3 | Pending |
-| BET-03 | Phase 3 | Pending |
-| BET-04 | Phase 3 | Pending |
-| ADMN-01 | Phase 4 | Pending |
-| ADMN-02 | Phase 4 | Pending |
-| ADMN-03 | Phase 4 | Pending |
-| TOKN-04 | Phase 4 | Pending |
-| LEAD-01 | Phase 4 | Pending |
-| LEAD-02 | Phase 4 | Pending |
-| LEAD-03 | Phase 5 | Pending |
-| LEAD-04 | Phase 5 | Pending |
-| LEAD-05 | Phase 5 | Pending |
+| PAY-01 | TBD | Pending |
+| PAY-02 | TBD | Pending |
+| PAY-03 | TBD | Pending |
+| PAY-04 | TBD | Pending |
+| PAY-05 | TBD | Pending |
+| PAY-06 | TBD | Pending |
+| PURC-01 | TBD | Pending |
+| PURC-02 | TBD | Pending |
+| PURC-03 | TBD | Pending |
+| PURC-04 | TBD | Pending |
+| PURC-05 | TBD | Pending |
+| PURC-06 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 27 total
-- Mapped to phases: 27
-- Unmapped: 0
+- v2.0 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12
 
 ---
-*Requirements defined: 2026-02-19*
-*Last updated: 2026-02-19 — traceability populated after roadmap creation*
+*Requirements defined: 2026-02-21*
+*Last updated: 2026-02-21 after v2.0 milestone definition*
