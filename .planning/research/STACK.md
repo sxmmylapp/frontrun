@@ -1,217 +1,264 @@
-# Stack Research
+# Technology Stack: Stripe Payment Integration
 
-**Domain:** Prediction market web app (virtual tokens, AMM-based odds, SMS auth, leaderboard)
-**Researched:** 2026-02-19
+**Project:** Frontrun v2.0 - USD Token Purchase
+**Researched:** 2026-02-21
 **Confidence:** HIGH
 
 ---
 
-## Recommended Stack
+## Recommended Stack Additions
 
-### Core Technologies
+These are NEW packages to add to the existing stack. The existing Next.js 16 / React 19 / Supabase / Tailwind / shadcn/ui stack remains unchanged.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Next.js | 16.x (latest stable) | Full-stack framework, routing, API routes, SSR | Industry standard for React apps in 2025. App Router is mature and stable. Turbopack is now the default bundler (5-10x faster dev). Server Components reduce client bundle size — critical for mobile performance. Built-in PWA guide published fall 2024. |
-| TypeScript | 5.x | Type safety across frontend and backend | Prediction markets have complex AMM math and token accounting — type safety catches bugs before they become financial logic errors. Next.js 16 ships with full React 19 + TS support. |
-| Tailwind CSS | 4.x | Utility-first styling, mobile-first by default | shadcn/ui now requires Tailwind v4 (`@theme` directive). Fastest path to polished mobile UI. No runtime overhead — purely build-time CSS. |
-| shadcn/ui | latest (CLI-based, no version pin) | Accessible component primitives | You own the source code — copy components into your repo, customize freely. Built on Radix UI for accessibility. Updated for Tailwind v4 and React 19. Best choice when you don't want a heavy component library locking you in. |
-| Supabase | latest (hosted) | Database (PostgreSQL), Auth, Realtime | Provides phone/SMS OTP auth natively. Realtime subscriptions via PostgreSQL changes — live market odds updates without WebSocket boilerplate. Row Level Security enforced at DB level. Free tier: 500 MB DB, 50K MAU — more than enough for a ~20-person community app. Managed hosting means no infra to run. |
-| Twilio Verify (via Supabase) | v2 | SMS OTP delivery for phone auth | Supabase's phone auth integrates with Twilio Verify directly. $0.05 per successful verification + $0.0083/SMS (US). For 20 users signing up once, cost is negligible. Note: Authy API is defunct — Verify v2 is the correct product. |
+### Stripe Server SDK
 
-### Supporting Libraries
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `stripe` | ^20.3.1 | Server-side Stripe API: create PaymentIntents, verify webhook signatures, manage payment methods | Official Node.js SDK. Used exclusively in server actions and route handlers -- never exposed to the client. Actively maintained, current API version 2026-01-28. Provides `stripe.webhooks.constructEvent()` for webhook signature verification. |
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Zustand | 5.x | Client-side global state | Use for UI state that doesn't belong in Supabase (active market selection, modal state, pending bet UI). Lightweight, no boilerplate. Better than Jotai for this app because state is interconnected (user tokens affect multiple views). |
-| Zod | 3.x | Schema validation and type inference | Validate all API inputs (bet amounts, market creation fields, admin resolution). Use with Next.js Server Actions for type-safe form handling. Critical for preventing invalid AMM state from bad inputs. |
-| React Hook Form | 7.x | Form state management | Pair with Zod for bet placement and market creation forms. Minimal re-renders — important for mobile performance. |
-| @supabase/ssr | latest | Supabase + Next.js App Router integration | The official Supabase package for App Router. Replaces the older `@supabase/auth-helpers-nextjs`. Handles cookie-based session management correctly in RSC context. |
-| decimal.js | 10.x | Arbitrary precision arithmetic for AMM math | CPMM and LMSR calculations involve floating-point operations that compound errors in standard JS numbers. Use decimal.js for all token and share calculations to avoid rounding bugs that shift market outcomes. |
-| date-fns | 3.x | Date utilities | Resolution date display, market expiry countdown, leaderboard period tracking. Smaller than moment.js, tree-shakeable. |
-| web-push | 9.x | Push notifications via VAPID keys | Optional: notify users when a market they bet on resolves. Next.js official PWA guide uses this exact library. |
+### Stripe Client SDK
 
-### Development Tools
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `@stripe/stripe-js` | ^8.8.0 | Client-side Stripe.js loader -- async-loads Stripe.js from Stripe CDN, provides TypeScript types | Required peer dependency for `@stripe/react-stripe-js`. Lazy-loads Stripe.js so it does not block page render. Must call `loadStripe()` outside component render to avoid re-creating the Stripe object on every render. |
+| `@stripe/react-stripe-js` | ^5.6.0 | React components for Stripe Elements: `<Elements>` provider, `<ExpressCheckoutElement>`, `useStripe()` / `useElements()` hooks | Provides the `<ExpressCheckoutElement>` component that renders Apple Pay / Google Pay buttons. Handles Stripe Elements lifecycle (create, mount, destroy) via React. Compatible with React 19. Eliminates manual DOM mounting. |
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Turbopack | Dev server bundler (built into Next.js 16) | Default in Next.js 16. Zero config — just `next dev`. 5-10x faster HMR than Webpack. |
-| ESLint | Linting | Use `eslint-config-next` (included). Add `eslint-plugin-tailwindcss` for class order linting. |
-| Prettier | Code formatting | Add `prettier-plugin-tailwindcss` for automatic class sorting — essential when working with many utility classes. |
-| Supabase CLI | Local dev, migrations, type generation | `supabase gen types typescript` generates TypeScript types from your DB schema. Run this after every migration. |
-| @serwist/next | 9.2.3 | Offline support / enhanced PWA | Only needed if you want offline caching. Next.js 16 has built-in PWA manifest support — add Serwist only if you need full offline mode. For this project, the built-in approach is sufficient initially. |
+### Nothing Else
+
+| Category | Decision | Rationale |
+|----------|----------|-----------|
+| Payment database table | NOT needed | Token purchases credit the existing `token_ledger` with reason `token_purchase`. The `reference_id` column stores the Stripe PaymentIntent ID for audit trail. No separate purchases table -- the ledger IS the purchase record. A `purchases` table would duplicate what the ledger already provides. |
+| State management | NOT needed | Zustand already handles client state. The payment flow is transactional (one-shot), not ongoing state to manage. |
+| Form library | NOT needed | Express Checkout Element renders its own UI -- no form fields for the developer to manage. No React Hook Form involvement in payment. |
+| CSS / UI library | NOT needed | Stripe Elements render in a Stripe-hosted iframe with their own styles. The surrounding purchase page uses existing shadcn/ui components (`Card`, `Button`, `Badge`). |
+| Webhook verification library | NOT needed | The `stripe` SDK includes built-in `stripe.webhooks.constructEvent()` for HMAC signature verification. No third-party library needed. |
+| Database migration tool | NOT needed | Supabase CLI already handles migrations. The only schema change is adding `token_purchase` as a valid ledger reason (and optionally a small `purchases` metadata column, but even that is optional since PaymentIntent ID goes in `reference_id`). |
 
 ---
 
-## AMM Math: The Core Decision
+## Key Integration Decisions
 
-This is the most important technical decision in the stack. Two options:
+### PaymentIntents API (NOT Checkout Sessions)
 
-### CPMM (Constant Product Market Maker) — Recommended
+**Decision:** Use PaymentIntents API with the Express Checkout Element.
 
-Formula: `x * y = k` where x and y are shares of each outcome.
+**Why PaymentIntents over Checkout Sessions:**
+- Express Checkout Element renders Apple Pay / Google Pay buttons inline in your UI -- no redirect to a Stripe-hosted page
+- Fixed token packs ($5/$10/$20) are simple enough that Checkout Sessions' built-in tax/shipping/discount features add zero value
+- PaymentIntents keeps the user in-app, which is critical for the mobile-first experience -- tapping a pack, authenticating with Face ID, and seeing tokens credited should feel instant
+- The flow matches the existing app pattern: user action -> server action -> atomic DB update -> Realtime balance push
 
-**Why:** Simpler to implement correctly. Same mechanism as Uniswap (battle-tested). Manifold Markets uses a variant called "Maniswap" (CPMM-based). No liquidity parameter to tune. Price of YES = `y / (x + y)`.
+**When Checkout Sessions WOULD be better:** If we needed a full cart, tax calculation, shipping addresses, or a hosted receipt page. We don't.
 
-**Implementation:** No dedicated JS library needed — implement in ~50 lines of TypeScript. Keep all calculations in `decimal.js` for precision.
+### Express Checkout Element (NOT Payment Request Button)
 
-```typescript
-// CPMM core — implement this yourself, don't use a library
-import Decimal from 'decimal.js'
+**Decision:** Use `<ExpressCheckoutElement>` from `@stripe/react-stripe-js`.
 
-export function cpmm(yesShares: Decimal, noShares: Decimal) {
-  const k = yesShares.mul(noShares)
-  return {
-    yesPrice: yesShares.div(yesShares.add(noShares)),
-    noPrice: noShares.div(yesShares.add(noShares)),
-    k,
-  }
-}
+**Why Express Checkout Element over Payment Request Button:**
+- Payment Request Button is legacy -- Stripe explicitly documents a migration path to Express Checkout Element and recommends it for all new integrations
+- Express Checkout Element supports Apple Pay, Google Pay, Link, PayPal, Klarna, Amazon Pay -- all from a single `<ExpressCheckoutElement />` component
+- Automatically detects and shows only payment methods available on the user's device/browser (Apple Pay on Safari/iOS, Google Pay on Chrome/Android)
+- Responsive grid layout that adapts to available space -- works well in the mobile-first card-based purchase UI
 
-export function buyShares(
-  outcome: 'yes' | 'no',
-  tokenAmount: Decimal,
-  yesShares: Decimal,
-  noShares: Decimal
-) {
-  const k = yesShares.mul(noShares)
-  if (outcome === 'yes') {
-    const newNoShares = noShares.add(tokenAmount)
-    const newYesShares = k.div(newNoShares)
-    const sharesReceived = yesShares.sub(newYesShares)
-    return { newYesShares, newNoShares, sharesReceived }
-  } else {
-    const newYesShares = yesShares.add(tokenAmount)
-    const newNoShares = k.div(newYesShares)
-    const sharesReceived = noShares.sub(newNoShares)
-    return { newYesShares, newNoShares, sharesReceived }
-  }
-}
+### Server Actions for PaymentIntent Creation (NOT API Routes)
+
+**Decision:** Create PaymentIntents via Next.js server actions in `src/lib/payments/actions.ts`.
+
+**Why server actions:**
+- Matches the existing codebase pattern -- all mutations are server actions in `src/lib/*/actions.ts`
+- The server action creates a PaymentIntent and returns the `clientSecret` directly to the client component
+- No need to set up REST endpoints -- the server action handles validation, Stripe API calls, and error handling in one function
+- Type-safe with the existing `{ success: true; data } | { success: false; error }` return pattern
+
+### Route Handler for Stripe Webhooks (NOT Server Actions)
+
+**Decision:** Use a Next.js Route Handler at `src/app/api/webhooks/stripe/route.ts`.
+
+**Why a route handler, not a server action:**
+- Webhooks are inbound HTTP POST requests from Stripe servers -- they cannot call server actions
+- Route Handler is the App Router way to handle inbound HTTP requests
+- Must access the raw request body via `request.text()` for webhook signature verification (the raw body must match the HMAC; parsed JSON will not work)
+- The webhook handler is the single point where payment confirmation atomically credits tokens to the user's ledger
+
+### Webhook-Driven Token Crediting (NOT Optimistic)
+
+**Decision:** Only credit tokens when the `payment_intent.succeeded` webhook fires.
+
+**Why not optimistic (credit on client confirm):**
+- `stripe.confirmPayment()` succeeding on the client means the payment was submitted, not that money moved
+- The payment can still fail asynchronously (bank decline, fraud check, insufficient funds)
+- The webhook is the only reliable signal that Stripe received the funds
+- Double-crediting is worse than a 1-2 second delay -- the append-only ledger has no "undo" mechanism
+- The existing `useUserBalance` hook subscribes to Realtime `INSERT` events on `token_ledger`, so the balance updates automatically once the webhook writes the ledger entry
+
+---
+
+## Payment Flow
+
+```
+1. User navigates to /purchase (or taps "Buy Tokens" from profile/balance)
+2. User selects a token pack ($5 = 500 tokens, $10 = 1100 tokens, $20 = 2500 tokens)
+3. Client component calls server action: createPaymentIntent({ packId, userId })
+4. Server action:
+   a. Validates user is authenticated
+   b. Looks up pack tier -> amount in cents (500, 1000, 2000)
+   c. Creates Stripe PaymentIntent with:
+      - amount: pack price in cents
+      - currency: 'usd'
+      - metadata: { user_id, pack_id, token_amount }
+      - automatic_payment_methods: { enabled: true }
+   d. Returns { clientSecret } to client
+5. Client initializes <Elements> with clientSecret, mode, amount, currency
+6. <ExpressCheckoutElement> renders Apple Pay / Google Pay button
+7. User taps button -> biometric auth (Face ID / fingerprint)
+8. On 'confirm' event:
+   a. elements.submit()
+   b. stripe.confirmPayment({ elements, clientSecret, confirmParams: { return_url } })
+9. Stripe processes payment
+10. Stripe fires payment_intent.succeeded webhook -> POST /api/webhooks/stripe
+11. Route handler:
+    a. Reads raw body via request.text()
+    b. Verifies signature with stripe.webhooks.constructEvent()
+    c. Extracts user_id, token_amount from event.data.object.metadata
+    d. Inserts token_ledger row: { user_id, amount: token_amount, reason: 'token_purchase', reference_id: payment_intent_id }
+    e. Returns 200
+12. Supabase Realtime pushes INSERT on token_ledger
+13. useUserBalance hook re-fetches balance -> UI updates
 ```
 
-### LMSR (Logarithmic Market Scoring Rule) — Alternative
+---
 
-More theoretically rigorous but requires a liquidity parameter `b` that must be set at market creation. Getting `b` wrong means either tiny price movements (boring) or extreme sensitivity (gambling-like). LMSR is better for combinatorial markets. For binary YES/NO this app, CPMM is simpler and sufficient.
+## Environment Variables (New)
+
+```env
+# Server-side only (never prefix with NEXT_PUBLIC_)
+STRIPE_SECRET_KEY=sk_test_...          # Stripe secret key for server-side API calls
+STRIPE_WEBHOOK_SECRET=whsec_...        # Webhook endpoint signing secret for signature verification
+
+# Client-side (safe to expose -- this is the publishable key)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...  # Stripe publishable key for Stripe.js initialization
+```
+
+Set these in Netlify environment variables (site settings -> environment variables). For local development, add to `.env.local`.
 
 ---
 
-## Hosting
+## Apple Pay Domain Verification
 
-| Service | Recommended Plan | Monthly Cost | Rationale |
-|---------|-----------------|-------------|-----------|
-| Vercel | Hobby (free) | $0 | Next.js is Vercel's own product — zero config deploy, preview deployments per PR, automatic HTTPS. For 20 users, the free tier is unlimited. Start here. |
-| Supabase | Free | $0 | 500 MB DB, 50K MAU — massively sufficient for 20 users. Free projects pause after 1 week of inactivity, but daily use prevents this. |
-| Twilio Verify | Pay-as-you-go | ~$0.06/verification | At 20 users, total signup cost ~$1.20. Negligible. |
+Apple Pay on the web requires domain registration with Stripe. Without this, Apple Pay buttons will not appear on iOS/macOS.
 
-**Total recurring cost at launch: $0/month.**
+**Steps:**
+1. Register `frontrun.bet` in Stripe Dashboard -> Settings -> Payment Methods -> Domains
+2. Stripe provides a verification file
+3. Host the file at `public/.well-known/apple-developer-merchantid-domain-association` (Next.js serves files from `public/` statically)
+4. Register the domain in both test mode and live mode
+5. Verify it works by loading the page on an iPhone with a card in Apple Wallet
+
+**Google Pay:** No domain registration required. Google Pay appears automatically on Chrome/Android when the user has a card saved in Google Pay.
 
 ---
 
 ## Installation
 
 ```bash
-# Bootstrap Next.js 16 with TypeScript and Tailwind
-npx create-next-app@latest prediction-market \
-  --typescript \
-  --tailwind \
-  --app \
-  --turbopack \
-  --src-dir
+# 3 new production dependencies
+npm install stripe @stripe/stripe-js @stripe/react-stripe-js
+```
 
-# Core dependencies
-npm install @supabase/supabase-js @supabase/ssr zustand zod react-hook-form date-fns decimal.js
+No new dev dependencies required.
 
-# shadcn/ui (copies components into your codebase — run after project init)
-npx shadcn@latest init
+---
 
-# Dev dependencies
-npm install -D prettier prettier-plugin-tailwindcss eslint-plugin-tailwindcss
+## New File Structure
 
-# Supabase CLI (for migrations + type generation)
-npm install -D supabase
+```
+src/
+  lib/
+    payments/
+      actions.ts          # Server actions: createPaymentIntent
+      stripe.ts           # Stripe server client singleton
+      packs.ts            # Token pack definitions (price, token amount, id)
+    ...existing lib/
+  app/
+    (app)/
+      purchase/
+        page.tsx          # Purchase page (server component)
+        PurchaseClient.tsx # Client component with ExpressCheckoutElement
+      ...existing routes
+    api/
+      webhooks/
+        stripe/
+          route.ts        # Webhook handler: POST /api/webhooks/stripe
 ```
 
 ---
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Next.js 16 | Remix | If you need multi-server deployment or more granular streaming control. Not worth the ecosystem trade-off for this project. |
-| Supabase | Firebase | If you're already deep in GCP ecosystem. Supabase's PostgreSQL RLS and realtime are better fit for this domain. Firebase's NoSQL makes AMM state harder to reason about. |
-| Supabase phone auth | Auth.js (NextAuth) | Auth.js doesn't natively support phone/SMS OTP — you'd bolt Twilio on yourself. Supabase ships this as first-class. |
-| CPMM (custom) | Gnosis FPMM contracts | If building on-chain (blockchain). We're building a web app with a database — don't use blockchain primitives. |
-| Zustand | Redux Toolkit | If the team is large and needs strict action-based state tracing. Overkill for a ~20-user side project. |
-| Tailwind v4 + shadcn | Material UI / Chakra | Both add large runtime deps. shadcn components are zero-runtime (just CSS classes). Mobile bundle size matters. |
-| decimal.js | Big.js or native floats | Big.js is fine too. Native floats will produce wrong answers in AMM math — don't use them. |
-| Vercel | Railway | Use Railway if you add a background worker (e.g., automated market resolution, scheduled leaderboard snapshots). Railway handles long-running processes; Vercel serverless functions timeout at 10-60s. |
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Payment provider | Stripe | Square, PayPal direct, Braintree | Stripe has the best Apple Pay / Google Pay integration via Express Checkout Element. Single SDK handles both wallet types. Industry standard for web payments. No monthly fees -- only per-transaction (2.9% + $0.30). |
+| Client integration | Express Checkout Element | Payment Request Button | Payment Request Button is legacy. Stripe documentation explicitly recommends migrating to Express Checkout Element. |
+| Client integration | Express Checkout Element | Stripe Checkout (hosted page) | Checkout redirects users to a Stripe-hosted page -- breaks the mobile-first in-app feel. Express Checkout keeps users in the app with a native wallet sheet. |
+| Server pattern | PaymentIntents + server actions | Checkout Sessions API | Checkout Sessions add redirect/session management complexity for zero benefit with fixed-price packs. PaymentIntents + server actions match the existing codebase pattern. |
+| Token crediting | Webhook-driven | Optimistic (credit on client confirm) | Client confirmation does not guarantee payment success. The webhook is the only reliable signal that money moved. A 1-2 second delay is acceptable; double-crediting is not. |
+| Purchase records | token_ledger (existing) | Separate purchases table | The token_ledger already has `reason` and `reference_id` columns. Adding `token_purchase` as a reason with the Stripe PaymentIntent ID in `reference_id` is sufficient. Keeps a single source of truth for all balance changes. |
+| Idempotency | Stripe PaymentIntent metadata + ledger check | None | Before crediting tokens, the webhook handler checks if a ledger entry with this `reference_id` (PaymentIntent ID) already exists. This prevents double-crediting on webhook retries. |
 
 ---
 
-## What NOT to Use
+## What NOT to Add
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Native JS `number` for AMM math | IEEE 754 floating-point errors compound in share calculations. `0.1 + 0.2 !== 0.3`. A rounding error in odds shifts a market incorrectly. | `decimal.js` for all AMM arithmetic |
-| `next-pwa` (shadowwalker) | Unmaintained since 2023. No updates for Next.js App Router. | Built-in Next.js PWA manifest + `@serwist/next` if offline is needed |
-| Authy API / Twilio Authy | Authy API closed to new sign-ups. Twilio itself recommends migrating away. | Twilio Verify v2 (via Supabase phone auth) |
-| Pages Router | Next.js 16 App Router is the current standard. Pages Router is in maintenance mode. | App Router |
-| WebSockets (raw) | Supabase Realtime already gives you PostgreSQL change subscriptions with auth — no need to manage WebSocket connections yourself. | Supabase Realtime |
-| Prisma | Adds an extra ORM layer when Supabase already exposes a typed client and handles migrations. Duplication of schema management. | Supabase JS client + Supabase CLI for migrations |
-| Redux / Redux Toolkit | Massive boilerplate for a small app. The store shape this app needs is simple. | Zustand |
-| moment.js | Deprecated, large bundle. | `date-fns` |
+| Avoid | Why | What to Do Instead |
+|-------|-----|---------------------|
+| Separate `purchases` database table | Duplicates what `token_ledger` already tracks. Two sources of truth for balance = bugs. | Use `token_ledger` with `reason: 'token_purchase'` and `reference_id: pi_xxx` |
+| Stripe Checkout (hosted page) | Redirects user away from app. Mobile users lose context. Return URL handling is fragile on Netlify. | Use PaymentIntents + Express Checkout Element for in-app payment |
+| Payment Request Button Element | Legacy component. Stripe recommends Express Checkout Element for all new integrations. | Use `<ExpressCheckoutElement />` |
+| Custom Apple Pay / Google Pay integration | Direct Apple Pay JS / Google Pay API integration is complex and duplicates what Stripe handles. | Stripe's Express Checkout Element wraps both wallet APIs behind a single component |
+| Server-side rendering for payment page | Stripe Elements must run client-side (they load Stripe.js in the browser). SSR will fail. | Mark the payment component as `'use client'` and use `loadStripe()` |
+| Storing card details | PCI compliance nightmare. Storing card numbers is never acceptable. | Stripe handles all card storage. We only store the PaymentIntent ID. |
 
 ---
 
-## Stack Patterns by Variant
+## Stripe Pricing Impact
 
-**If the app stays at ~20 users (initial scope):**
-- Free tiers for everything (Vercel Hobby + Supabase Free)
-- No caching layer needed
-- Single Supabase project is sufficient
+For the expected scale (10-20 users, occasional purchases):
 
-**If users grow to ~1,000:**
-- Upgrade Supabase to Pro ($25/mo) for more connections and no inactivity pauses
-- Stay on Vercel free or upgrade to Pro ($20/mo) for team features
-- Add Redis (Upstash, $0 to $10/mo) if leaderboard queries become slow
+| Pack | Price | Stripe Fee (2.9% + $0.30) | Net Revenue |
+|------|-------|---------------------------|-------------|
+| $5   | $5.00 | $0.45                     | $4.55       |
+| $10  | $10.00| $0.59                     | $9.41       |
+| $20  | $20.00| $0.88                     | $19.12      |
 
-**If you add background jobs (e.g., auto-close expired markets):**
-- Move hosting from Vercel to Railway — Vercel functions can't run cron jobs longer than 60s on free tier
-- Railway Hobby plan at $5/mo handles this cleanly
-
-**If multiple-choice markets use complex AMMs:**
-- CPMM still works for N-outcome markets with N liquidity pools
-- Keep it simple: implement N separate YES pools, one per outcome, normalized
+No monthly Stripe fees. No setup fees. Pay only when transactions occur. Apple Pay and Google Pay have the same fee structure as card payments through Stripe.
 
 ---
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| `@supabase/ssr` latest | Next.js 16 App Router | Replaces deprecated `@supabase/auth-helpers-nextjs`. Required for correct SSR cookie handling. |
-| shadcn/ui latest | Tailwind v4, React 19 | shadcn recently migrated to Tailwind v4. Run `npx shadcn@latest init` — don't install an old version. |
-| `next` 16.x | React 19.2 | Next.js 16 ships with React 19.2. Don't separately install React 18 — it will conflict. |
-| `decimal.js` 10.x | Node 18+, browser | Works in both environments. Use the same `Decimal` instance server-side (Server Actions) and client-side. |
-| `@serwist/next` 9.2.3 | Next.js 15+ | Requires webpack config. If staying on Turbopack for dev, Serwist only applies to the production build. |
+| Package | Compatible With | Verified |
+|---------|-----------------|----------|
+| `stripe` ^20.3.1 | Node.js 16+ (Next.js 16 runs Node 18+) | YES -- npm shows active maintenance, published 15 days ago |
+| `@stripe/stripe-js` ^8.8.0 | Any modern browser, React 19 | YES -- published 13 hours ago, actively maintained |
+| `@stripe/react-stripe-js` ^5.6.0 | React 18+, React 19 | YES -- published 20 days ago, uses React hooks API |
+| Express Checkout Element | `@stripe/stripe-js` ^8.x, `@stripe/react-stripe-js` ^5.x | YES -- Express Checkout Element is part of Stripe Elements, available in current SDK versions |
 
 ---
 
 ## Sources
 
-- Next.js 16 official blog — [https://nextjs.org/blog/next-16](https://nextjs.org/blog/next-16) — Turbopack stability, React 19.2, caching APIs (HIGH confidence)
-- Next.js PWA official guide — [https://nextjs.org/docs/app/guides/progressive-web-apps](https://nextjs.org/docs/app/guides/progressive-web-apps) — Built-in manifest, service worker, web-push (HIGH confidence, updated 2026-02-16)
-- Supabase phone login docs — [https://supabase.com/docs/guides/auth/phone-login](https://supabase.com/docs/guides/auth/phone-login) — Supported providers: Twilio, MessageBird, Vonage, TextLocal (HIGH confidence)
-- Supabase pricing — [https://supabase.com/pricing](https://supabase.com/pricing) — Free tier: 500 MB DB, 50K MAU (HIGH confidence)
-- Twilio Verify pricing — [https://www.twilio.com/en-us/verify/pricing](https://www.twilio.com/en-us/verify/pricing) — $0.05/verification + $0.0083/SMS (HIGH confidence)
-- Paradigm pm-AMM paper — [https://www.paradigm.xyz/2024/11/pm-amm](https://www.paradigm.xyz/2024/11/pm-amm) — CPMM vs LMSR comparison (MEDIUM confidence)
-- Manifold Markets Wikipedia — [https://en.wikipedia.org/wiki/Manifold_(prediction_market)](https://en.wikipedia.org/wiki/Manifold_(prediction_market)) — Maniswap (CPMM variant) as their AMM (MEDIUM confidence)
-- Serwist npm — [https://www.npmjs.com/package/@serwist/next](https://www.npmjs.com/package/@serwist/next) — v9.2.3, updated 20 days ago (HIGH confidence)
-- shadcn/ui Tailwind v4 — [https://ui.shadcn.com/docs/tailwind-v4](https://ui.shadcn.com/docs/tailwind-v4) — Tailwind v4 migration complete (HIGH confidence)
-- Railway vs Vercel comparison — [https://docs.railway.com/platform/compare-to-vercel](https://docs.railway.com/platform/compare-to-vercel) — Hosting decision rationale (MEDIUM confidence)
-- Play Money open source — [https://github.com/casesandberg/play-money](https://github.com/casesandberg/play-money) — Real prediction market stack: TypeScript, Prisma, PostgreSQL, Turborepo (MEDIUM confidence)
+- [stripe npm package](https://www.npmjs.com/package/stripe) -- v20.3.1, last published 15 days ago (HIGH confidence)
+- [@stripe/stripe-js npm](https://www.npmjs.com/package/@stripe/stripe-js) -- v8.8.0, last published 13 hours ago (HIGH confidence)
+- [@stripe/react-stripe-js npm](https://www.npmjs.com/package/@stripe/react-stripe-js) -- v5.6.0, last published 20 days ago (HIGH confidence)
+- [Express Checkout Element docs](https://docs.stripe.com/elements/express-checkout-element) -- official Stripe documentation (HIGH confidence)
+- [Accept payment with Express Checkout Element](https://docs.stripe.com/elements/express-checkout-element/accept-a-payment) -- PaymentIntents flow with Express Checkout (HIGH confidence)
+- [Migrate from Payment Request Button to Express Checkout](https://docs.stripe.com/elements/express-checkout-element/migration) -- confirms Express Checkout is the successor (HIGH confidence)
+- [Checkout Sessions vs Payment Intents comparison](https://docs.stripe.com/payments/checkout-sessions-and-payment-intents-comparison) -- decision rationale (HIGH confidence)
+- [Apple Pay on the web](https://docs.stripe.com/apple-pay?platform=web) -- domain verification requirements (HIGH confidence)
+- [Stripe webhook signature verification](https://docs.stripe.com/webhooks/signature) -- constructEvent pattern (HIGH confidence)
+- [Stripe + Next.js 15 complete guide](https://www.pedroalonso.net/blog/stripe-nextjs-complete-guide-2025/) -- server actions pattern (MEDIUM confidence, third-party but well-sourced)
 
 ---
 
-*Stack research for: Prediction Market — virtual token AMM web app*
-*Researched: 2026-02-19*
+*Stack research for: Frontrun v2.0 -- Stripe payment integration for USD token purchase*
+*Researched: 2026-02-21*

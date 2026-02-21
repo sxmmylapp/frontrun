@@ -1,203 +1,278 @@
 # Project Research Summary
 
-**Project:** Prediction Market
-**Domain:** Mobile-first community prediction market — virtual tokens, AMM odds, leaderboard prizes
-**Researched:** 2026-02-19
-**Confidence:** HIGH (stack, architecture, pitfalls) / MEDIUM (features — small-community niche underrepresented in literature)
+**Project:** Frontrun v2.0 — USD Token Purchase via Stripe
+**Domain:** In-app virtual currency purchase (Apple Pay / Google Pay via Stripe Express Checkout Element)
+**Researched:** 2026-02-21
+**Confidence:** HIGH
 
 ## Executive Summary
 
-This is a mobile-first social prediction market for a small trusted community (~10-20 people). The app lets users create binary and multiple-choice markets on any topic, bet free virtual tokens on outcomes, watch odds shift dynamically via an AMM, and compete on a leaderboard for periodic USD prizes. Research confirms this exact niche has one close analog — Manifold Markets — and its architecture is well-documented, open source, and directly applicable. The recommended stack is Next.js 16 + Supabase + CPMM AMM, deployable at $0/month on Vercel Hobby and Supabase Free tiers, with Twilio Verify for SMS auth at roughly $1.20 total signup cost for 20 users.
+Adding real-money token purchases to Frontrun is a well-understood integration pattern with mature tooling. The approach is: Stripe PaymentIntents API + Express Checkout Element for the client-side wallet UX, a Next.js Route Handler for PaymentIntent creation, and a separate webhook Route Handler for fulfillment. The existing append-only token ledger integrates naturally — purchased tokens are indistinguishable from signup tokens, the existing `useUserBalance` Realtime subscription auto-updates the balance on any ledger INSERT, and the existing admin Supabase client handles server-side writes. Minimal new infrastructure is required: three new npm packages, two new Route Handlers, two new database tables (`token_purchases` for history/idempotency and `stripe_events` for webhook deduplication), one ledger CHECK constraint migration, and a Supabase RPC for atomic fulfillment.
 
-The single most important technical decision is the AMM mechanism. Research conclusively recommends CPMM (Constant Product Market Maker, x*y=k) over LMSR. CPMM is simpler to implement correctly, requires no tunable liquidity parameter, is used by both Manifold Markets and Polymarket, and has no floating-point precision risks when implemented with decimal.js. LMSR's `b` parameter is a documented "black art" that consistently causes either unresponsive odds or wild price swings in small-liquidity communities — exactly this use case. The CPMM core is ~50 lines of TypeScript.
+The single most critical architectural decision is fulfillment-via-webhook-only. Token credits must happen exclusively in the `payment_intent.succeeded` webhook handler — never in client-side callbacks. The client-side `onConfirm` handler creates the PaymentIntent and calls `stripe.confirmPayment()`; it never credits tokens. This prevents double-crediting on Stripe's webhook retries (catastrophic in an append-only ledger), handles browser-close and network-failure scenarios, and matches Stripe's documented best practices. The existing Supabase Realtime subscription on `token_ledger` delivers the balance update to the client automatically once the webhook fires, so no polling infrastructure is needed.
 
-The top risks are not technical complexity — they are financial integrity and social trust. Three pitfalls can destroy the product before it gains traction: race conditions on concurrent bets (corrupts token balances), ambiguous market resolution criteria (destroys community trust), and multi-account gaming tied to the prize system (undermines leaderboard integrity). All three are preventable with known patterns: atomic database transactions for bet placement, a required resolution criteria field at market creation, and phone-number uniqueness enforced at the database level. These must be correct from day one — they are not features that can be retrofitted.
+Three unavoidable risks require deliberate mitigation: (1) Stripe's webhook retry behavior causing double-credits — mitigated by a `stripe_events` table with a UNIQUE constraint on `event_id` and an atomic Supabase RPC with a row lock; (2) Netlify's 10-second serverless timeout killing the webhook handler — mitigated by keeping the handler minimal and delegating all DB work to one fast RPC; and (3) Apple Pay requiring explicit domain registration that silently fails with no user-visible error — mitigated by registering domains before writing any code and verifying the `/.well-known/` path is accessible post-deploy. A legal gap also exists: the USD-in/prize-out pattern may trigger money transmitter classification and must be addressed in Terms of Service before accepting the first payment.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The recommended stack is Next.js 16 (App Router, Turbopack) with TypeScript and Tailwind CSS v4 + shadcn/ui for the frontend, Supabase as the all-in-one backend (PostgreSQL, Auth, Realtime), and Twilio Verify via Supabase for SMS OTP. All at $0/month for the initial 10-20 user scale. The stack was selected because Supabase natively provides phone/SMS OTP auth, Realtime subscriptions for live odds updates, and Row Level Security for token isolation — features that would each require a separate service if using a different backend.
+The integration requires exactly three new production npm packages layered onto the existing Next.js 16 / Supabase / Tailwind / shadcn/ui stack. No new dev dependencies. The server SDK (`stripe` ^20.3.1) lives exclusively in server-side code and handles PaymentIntent creation and webhook signature verification. The client packages (`@stripe/stripe-js` ^8.8.0, `@stripe/react-stripe-js` ^5.6.0) load Stripe.js from the CDN and provide the `<ExpressCheckoutElement>` React component. All three packages are actively maintained and verified compatible with React 19 and Next.js App Router.
 
 **Core technologies:**
-- **Next.js 16 (App Router):** Full-stack framework — Server Components reduce mobile bundle size, API routes handle server-side AMM logic, built-in PWA manifest support
-- **TypeScript 5.x:** AMM math and token accounting have financial correctness requirements — type safety is not optional
-- **Tailwind CSS v4 + shadcn/ui:** Mobile-first utility CSS with accessible component primitives; shadcn requires Tailwind v4 now
-- **Supabase:** PostgreSQL database + phone/SMS OTP auth + Realtime subscriptions — three requirements in one service
-- **decimal.js 10.x:** All CPMM math must use arbitrary-precision arithmetic; native JS floats produce wrong answers in share calculations
-- **Zustand 5.x:** Lightweight client state for UI (active market, modal state, optimistic bet preview)
-- **Zod 3.x + React Hook Form 7.x:** Input validation on all API routes (bet amounts, market fields, admin resolution)
-- **Vercel Hobby:** Zero-config Next.js deployment, free tier handles 20 users indefinitely
+- `stripe` ^20.3.1: Server-side Stripe API, webhook signature verification via `stripe.webhooks.constructEvent()` — only the official SDK handles HMAC verification correctly; published 15 days ago
+- `@stripe/stripe-js` ^8.8.0: Lazy-loads Stripe.js from CDN; must call `loadStripe()` outside component render to avoid re-creating the Stripe object on every render; published 13 hours ago
+- `@stripe/react-stripe-js` ^5.6.0: Provides `<Elements>` provider and `<ExpressCheckoutElement>`, replacing the deprecated `<PaymentRequestButtonElement>` with unified Apple Pay / Google Pay / Link support; published 20 days ago
 
-**Version-critical notes:**
-- Use `@supabase/ssr` (not the deprecated `@supabase/auth-helpers-nextjs`) for Next.js App Router
-- Do not use `next-pwa` (unmaintained) — Next.js 16 has built-in PWA manifest support
-- Do not use native JS `number` for any AMM arithmetic — use `decimal.js` for all share calculations
+**Explicit non-additions:** No separate state management beyond existing Zustand, no custom payment form library, no Stripe Checkout hosted page (breaks mobile-first in-app UX by redirecting users away), no Payment Request Button (legacy — Stripe explicitly recommends Express Checkout Element for all new integrations).
+
+See `/Users/sammylapp/.gemini/antigravity/Workspaces/Prediction Market/.planning/research/STACK.md` for full version compatibility table and alternatives considered.
 
 ### Expected Features
 
-**Must have (table stakes) — v1 launch:**
-- Phone/SMS auth with free token grant on signup (1,000 tokens per verified phone)
-- Binary (Yes/No) market creation with question + resolution criteria + resolution date
-- Market feed showing open markets, sorted by activity/close date
-- Market detail page with live YES/NO probability display and volume
-- Bet placement with CPMM AMM (dynamic odds update on every bet)
-- Bet slip confirmation with projected payout preview before confirming
-- Token balance display persistent in navigation
-- Admin resolution UI: select outcome, trigger proportional payout to winners
-- Leaderboard by current token balance
+The feature set is focused and well-bounded. Three fixed token packs ($5/$10/$20) with optional bonus tokens on higher tiers keep the UX simple and avoid variable-amount edge cases. The most easily-missed dependency: the existing `token_ledger.reason` CHECK constraint must be migrated before deploying any payment code — the webhook handler will fail with a constraint violation on every payment attempt until this migration is applied.
 
-**Should have (engagement drivers) — v1.x after validation:**
-- Multiple-choice markets (per-option AMM pools; adds meaningful complexity — defer until binary is proven)
-- Market comments/discussion thread
-- User profile with bet history and win/loss record
-- Periodic prize system UI (admin manually handles first prize without formal UI)
-- Share market link with OG meta tags for viral growth
+**Must have (table stakes):**
+- Token pack selection UI — card-based, 3 fixed tiers, highlight middle "most popular" tier (anchoring psychology drives middle-tier selection)
+- Apple Pay button — requires domain registration; covers ~70% of US mobile web users on iOS Safari; button silently absent without registration
+- Google Pay button — bundled in Express Checkout Element, no domain registration needed; covers Android/Chrome
+- Instant token credit after payment — webhook-driven; leverages existing Supabase Realtime so balance auto-updates with zero additional code
+- Payment confirmation feedback — success toast ("500 tokens added!") via existing Sonner installation
+- Purchase history on profile page — filter `token_purchases` by user; show date, USD amount, tokens received, Stripe payment ID
+- Server-side amount enforcement — server maps `pack_id` to authoritative price; client never sends dollar amounts
+- Idempotent webhook processing — `stripe_events` table with UNIQUE on `event_id`; atomic RPC prevents double-credits
+- Error handling with clear messaging — map Stripe error codes to human-readable messages; handle `payment_intent.payment_failed` webhook event
+
+**Should have (competitive differentiators):**
+- "Buy Tokens" CTA in BetSlip on insufficient balance — highest-converting placement; converts a frustration moment into a purchase
+- Bonus tokens on larger packs (500/1100/2400 instead of 500/1000/2000) — standard mobile game monetization; incentivizes higher spend
+- Payment fallback for users without wallets — Payment Element below Express Checkout for card-entry; avoids blank payment page for ~5% of users
+- Real-time balance animation on credit — CSS counter transition on token balance; dopamine hit when tokens arrive
+- Persistent low-balance nudge — subtle dismissible banner below threshold (e.g., 50 tokens)
 
 **Defer to v2+:**
-- Push notifications / SMS reminders (community uses group chat for v1)
-- Performance stats and calibration scores (requires multiple resolved markets to be meaningful)
-- Market search and filtering (defer until >50 markets exist)
-- PWA installability optimization (revisit at 500+ active users)
+- Email receipts — phone-only auth means no email address available; revisit if email auth is added
+- Referral bonuses on purchase — abuse vectors outweigh benefit at 10-20 user scale
+- Subscription / auto-refill — overkill; Stripe subscription management complexity is unjustified
+- Animated pack card micro-interactions — polish, not blocking launch
 
-**Anti-features (never build for v1):**
-- Automated market resolution — ambiguous community questions cannot be auto-resolved
-- Real money deposits — triggers gambling regulation immediately
-- User-to-user token transfers — creates farming/manipulation incentives
-- Order book / limit orders — requires matching engine, overkill for AMM with low liquidity
+**Hard anti-features (never build):**
+- Token withdrawal / cash-out — triggers money transmitter classification under FinCEN
+- Custom card number input fields — increases PCI scope; Stripe Elements handle PCI
+- Variable purchase amounts — edge cases with no benefit at fixed-pack scale
+- Stripe Checkout hosted page — redirects user away from app; breaks mobile-first context
+
+See `/Users/sammylapp/.gemini/antigravity/Workspaces/Prediction Market/.planning/research/FEATURES.md` for full feature dependency graph and token pack pricing rationale.
 
 ### Architecture Approach
 
-The architecture is a standard Next.js monolith with Supabase as the data and realtime layer. All AMM logic runs server-side only — the client sends a bet intent and receives back the result, never computing or reporting its own share count. The token ledger is append-only (every credit and debit is a ledger row; balance is derived from SUM) which eliminates race condition risks from mutable balance columns and provides a full audit trail essential for the prize system. Supabase Realtime pushes pool state changes to all connected clients after each bet settles, eliminating polling entirely.
+The payment system adds a new vertical that integrates at exactly two points with the existing system: the `token_ledger` table (one new INSERT reason via migration) and the `user_balances` view (automatic — already derives from `SUM(token_ledger.amount)`). No existing components require logic changes. The `/buy` route lives inside the `(app)/` route group and is automatically protected by existing middleware. The Stripe webhook at `/api/webhooks/stripe` must not require auth — the middleware matcher already excludes `/api` routes, so the webhook is reachable by Stripe's servers while the Stripe signature verification serves as its own authentication.
 
 **Major components:**
-1. **CPMM AMM Service** (`lib/amm/cpmm.ts`) — pure TypeScript functions, no DB dependencies, independently testable; must be unit-tested before wiring to any API route
-2. **Bet API** (`app/api/bets/`) — server-side only; validates session, runs CPMM math, executes atomic DB transaction (pool update + position insert + ledger debit) in a single `BEGIN...COMMIT`
-3. **Token Ledger** (`token_ledger` table) — append-only, source of truth for all balances; balance queries are `SELECT SUM(amount) WHERE user_id = $1`
-4. **Resolution Service** — admin API that fetches all winning positions, calculates proportional payouts, and writes all ledger credits in a single transaction; partial resolution is not allowed
-5. **Supabase Realtime** — subscribes to `outcomes` table changes; pushes updated pool state to all clients viewing a market after each bet
-6. **Market State Machine** — markets transition `open → locked → resolved` (or `cancelled`); illegal transitions rejected at API layer; locked markets accept no new bets
+1. `POST /api/payments/create-intent` Route Handler — authenticates user from cookies, validates tier via Zod, creates Stripe PaymentIntent server-side with pack price and user metadata, inserts pending `token_purchases` row, returns `clientSecret`
+2. `POST /api/webhooks/stripe` Route Handler — receives raw body via `request.text()` (critical — `request.json()` breaks HMAC verification), verifies signature, calls `credit_token_purchase` RPC for atomic idempotent fulfillment; handles both `payment_intent.succeeded` and `payment_intent.payment_failed`
+3. `credit_token_purchase` Supabase RPC — row-locks `token_purchases` for update, checks idempotency (returns early if already `completed`), inserts `token_ledger` entry with reason `token_purchase`, updates purchase status to `completed` and sets `completed_at` — all in one transaction
+4. `/buy` page with `<BuyTokensClient>` — server component shell wraps client component with `<Elements>` provider configured for `mode: 'payment'`; `<ExpressCheckoutElement>` handles Apple Pay / Google Pay; `<PaymentElement>` as fallback
+5. `token_purchases` table — stores USD amount in cents, tier, Stripe PI ID (UNIQUE constraint as idempotency key), status, and `completed_at` for purchase history display and fulfillment polling
+6. `stripe_events` table — stores Stripe event IDs with UNIQUE constraint; webhook handler inserts here before any other processing; unique violation means duplicate event, return 200 and skip
 
-**Database schema (key tables):** `profiles`, `markets`, `outcomes` (yes_pool/no_pool columns), `positions`, `token_ledger` (append-only), `leaderboard_snapshots`
-
-**Build order the architecture mandates:**
-DB schema → Auth → Token ledger → Market CRUD → AMM service (unit tested) → Bet API → Realtime → Admin resolution → Leaderboard → Prize system
+See `/Users/sammylapp/.gemini/antigravity/Workspaces/Prediction Market/.planning/research/ARCHITECTURE.md` for full data flow diagram, component code patterns, and complete SQL migration.
 
 ### Critical Pitfalls
 
-1. **Race conditions on concurrent bets** — Multiple simultaneous bets on the same market corrupt pool state and can produce negative balances. Prevention: every bet is a single `BEGIN...COMMIT` transaction with `SELECT FOR UPDATE` on the market row. This must be correct from day one; retrofitting is painful.
+1. **Double-crediting tokens on duplicate webhook events** — Stripe retries webhooks for up to 3 days; the append-only ledger makes every accidental INSERT additive with no natural undo. Prevent with a `stripe_events` table (UNIQUE on `event_id`) and a `credit_token_purchase` RPC that row-locks and checks status inside a single transaction. This deduplication must exist before any webhooks arrive.
 
-2. **Ambiguous market resolution criteria** — Vague questions ("will it go well?") cause trust-destroying disputes in a 20-person community where everyone knows each other. Prevention: market creation form requires a separate mandatory "Resolution criteria" field; admin resolution UI prominently displays the original criteria before confirming.
+2. **Webhook signature verification failing due to body parsing** — Using `request.json()` instead of `request.text()` causes HMAC verification to fail on every webhook; users are charged but never credited. Always use `await request.text()` in the webhook route handler. Verify during development with `stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
 
-3. **Multi-account leaderboard gaming** — When real USD prizes are attached to the leaderboard, even friends will create secondary accounts and bet against themselves to farm tokens. Prevention: unique database constraint on phone number (not just application-level), VoIP number blocking via Twilio Lookup, and account age/activity minimums for prize eligibility.
+3. **Tokens never arriving despite successful client-side payment** — Client `onComplete` fires before the webhook; fulfillment in the client callback is unreliable (browser close, network failure). Fulfill ONLY via webhook. Leverage the existing `useUserBalance` Supabase Realtime subscription — it auto-updates on any `token_ledger` INSERT regardless of reason, so no polling infrastructure is needed.
 
-4. **LMSR b parameter trap** — LMSR's liquidity parameter is nearly impossible to tune correctly for a small community token supply. With 20 users × 1,000 tokens each, default `b` values from examples produce odds that never move. Prevention: use CPMM instead — no parameter to tune, correct behavior emerges naturally from bet volume.
+4. **Netlify 10-second serverless timeout killing webhook processing** — Cold starts plus Supabase connection latency can push the webhook handler over the limit. Keep the handler minimal: verify signature, insert into `stripe_events` (dedup check), call one atomic RPC, return 200. Total execution must stay under 5 seconds to have safety margin.
 
-5. **Token inflation / rich-get-richer** — Early users who get lucky in early markets accumulate tokens; leaderboard becomes fixed within a week; new users churn. Prevention: design periodic leaderboard resets (e.g., monthly competitions with fresh starting balances) from the start — this is a structural decision, not a feature to add later.
+5. **`token_ledger` CHECK constraint rejecting `token_purchase` reason** — Existing constraint allows only 5 predefined values. The migration adding `token_purchase` must be applied to the production database BEFORE deploying any payment code, not alongside it. Deploying code before migration means every webhook attempt returns 500 and Stripe retries indefinitely.
+
+6. **Apple Pay silently missing due to domain verification failure** — Apple Pay button simply does not render without domain registration; no error surfaces to the user or in console. Register `frontrun.bet` AND `www.frontrun.bet` in Stripe Dashboard before writing any frontend code. Ensure the `/.well-known/` path is excluded from the auth middleware matcher.
+
+See `/Users/sammylapp/.gemini/antigravity/Workspaces/Prediction Market/.planning/research/PITFALLS.md` for the full "Looks Done But Isn't" checklist, recovery strategies, and all 14 pitfalls.
 
 ## Implications for Roadmap
 
-Based on combined research, the component dependency graph and pitfall risk profile suggest this phase structure:
+The build order is strictly dependency-driven based on the dependency chain identified across all four research files. Database changes precede backend (the constraint migration must exist before the first webhook fires). Backend Route Handlers are verified before frontend is built (catch signature verification failures in isolation before wiring UI). Apple Pay domain registration runs in parallel with infrastructure setup — it has no code dependency but a time dependency (DNS propagation can take up to 24 hours). Legal/ToS work gates go-live, not initial development.
 
-### Phase 1: Foundation — DB Schema, Auth, and Token Ledger
-**Rationale:** Auth gates every user-facing feature. The token ledger's append-only design must be established before any token movement; retrofitting this later from a mutable balance column is destructive. Schema must come before any other code.
-**Delivers:** Working SMS OTP login/signup, 1,000-token grant on first login, persistent token balance in navigation
-**Features addressed:** Phone/SMS auth, free token grant, token balance display
-**Pitfalls avoided:** Race condition pitfall (ledger design eliminates mutable balance risks from day one); multi-account pitfall (phone uniqueness DB constraint established here)
-**Stack:** Supabase Auth + Twilio Verify, `@supabase/ssr`, Next.js App Router auth routes, `token_ledger` table
+### Phase 1: Database Foundation
 
-### Phase 2: AMM Core — CPMM Math (Isolated, Tested)
-**Rationale:** The AMM service is the highest-risk component and has no external dependencies — it's pure math. Build and unit-test it in complete isolation before wiring it to the database or API. This is the right time to verify the CPMM implementation handles edge cases (zero pools, dust bets, large bets draining a pool).
-**Delivers:** Verified CPMM functions for `buyYesShares`, `buyNoShares`, `yesProbability`, with unit tests asserting precision to 8 decimal places across 1,000-trade simulations
-**Features addressed:** Dynamic odds via AMM (foundational)
-**Pitfalls avoided:** LMSR b parameter trap (CPMM is chosen, no parameter exists); floating-point drift (decimal.js enforced in tests)
-**Stack:** `decimal.js`, Vitest or Jest for unit tests, `lib/amm/cpmm.ts`
+**Rationale:** Every downstream component depends on schema being in place. The `token_ledger` CHECK constraint must be migrated before any payment code can write to it. The `token_purchases` and `stripe_events` tables must exist before the webhook handler can perform idempotency checks. Deploying code before migrations is how Pitfall 7 (constraint rejection) happens and results in users being charged but never credited.
 
-### Phase 3: Markets and Betting — Core Loop
-**Rationale:** With auth, tokens, and AMM proven, the core product loop can be assembled. This phase delivers the minimum working product: create a market, bet on it, watch odds move, see your balance decrease. The bet API must use atomic transactions from day one.
-**Delivers:** Market creation (binary, with resolution criteria field), market feed, market detail with live YES/NO odds, bet placement with CPMM (atomic DB transaction), bet slip payout preview, Supabase Realtime live odds
-**Features addressed:** Binary market creation, market feed, market detail + odds, place bet, bet slip/payout preview, real-time odds
-**Pitfalls avoided:** Race condition pitfall (atomic transaction enforced); ambiguous resolution pitfall (resolution criteria required at creation); polling anti-pattern (Realtime subscription from day one)
-**Stack:** Next.js API routes, Supabase Realtime, Zod validation, React Hook Form, `decimal.js`
+**Delivers:** All schema changes ready; idempotency infrastructure in place; atomic fulfillment RPC deployed; Stripe npm packages installed; environment variables configured.
 
-### Phase 4: Resolution and Leaderboard
-**Rationale:** The betting loop is only complete once markets can resolve and winners get paid. The leaderboard becomes meaningful only after resolution redistributes tokens. Admin tooling is simple but must be bulletproof — a botched resolution in a 20-person community is a social catastrophe.
-**Delivers:** Admin resolution UI (with resolution criteria displayed prominently + resolution note required), atomic payout to all winners proportional to shares, market status transitions (open → locked → resolved), leaderboard by token balance
-**Features addressed:** Admin resolution, post-resolution payout, leaderboard
-**Pitfalls avoided:** Resolving outside a transaction (all winner credits in one `BEGIN...COMMIT`); admin conflict of interest (UI warns if admin has a position in the market being resolved)
-**Stack:** Supabase service-role client, PostgreSQL transactions, admin middleware role check
+**Addresses:** Idempotent webhook processing, purchase history storage, server-side amount enforcement (tier constants defined).
 
-### Phase 5: Social Layer and Engagement
-**Rationale:** Once the core loop is working and users are actually betting and resolving markets, add the engagement features that keep them coming back and pull in new participants.
-**Delivers:** Multiple-choice markets (per-option pools), market comments, user profile with bet history, share market link with OG meta tags, periodic prize system UI
-**Features addressed:** Multiple-choice markets, comments, bet history/profile, share link, prize system
-**Pitfalls avoided:** Token inflation (periodic reset and prize eligibility rules enforced here); empty feed (admin seeds markets before this phase goes live)
-**Stack:** OG meta tags (Next.js metadata API), same Supabase stack
+**Avoids:** Pitfall 7 (CHECK constraint rejection), Pitfall 1 (double-crediting — `stripe_events` UNIQUE constraint exists before any webhooks arrive).
+
+**Key tasks:**
+- `supabase/migrations/00006_token_purchases.sql`: create `token_purchases`, `stripe_events` tables; ALTER `token_ledger` CHECK constraint to add `token_purchase`; create `credit_token_purchase` RPC
+- `src/lib/stripe/tiers.ts`: server-authoritative token pack constants
+- `npm install stripe @stripe/stripe-js @stripe/react-stripe-js`
+- Configure `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env.local` and Netlify environment variables
+
+**Research flag:** Standard patterns — follows the existing `place_bet` RPC pattern exactly; no additional research needed.
+
+### Phase 2: Stripe Account Setup + Apple Pay Domain
+
+**Rationale:** Stripe account configuration (API keys, webhook endpoints, Apple Pay domain registration) is prerequisite for all backend and frontend work but has no code dependency. Running this in parallel with Phase 1 minimizes calendar time. Apple Pay domain verification can take up to 24 hours and must not block frontend development.
+
+**Delivers:** Stripe keys configured in all environments; webhook endpoint registered in Stripe Dashboard for both test and live modes; `frontrun.bet` and `www.frontrun.bet` domains registered for Apple Pay; `/.well-known/` verification file accessible via `curl`.
+
+**Avoids:** Pitfall 5 (Apple Pay invisible due to missing domain verification), Pitfall 6 (test vs live webhook secret mismatch).
+
+**Key tasks:**
+- Register `frontrun.bet` AND `www.frontrun.bet` in Stripe Dashboard > Settings > Payment Methods > Domains
+- Create webhook endpoint in Stripe Dashboard in both test mode and live mode
+- Copy separate webhook secrets for each mode into the appropriate environment
+- Add `/.well-known` exclusion to `middleware.ts` matcher pattern
+- Verify: `curl https://frontrun.bet/.well-known/apple-developer-merchantid-domain-association` returns file
+
+**Research flag:** Standard patterns — documented Stripe dashboard workflow; no code involved.
+
+### Phase 3: Backend Route Handlers
+
+**Rationale:** Frontend components require `clientSecret` from the create-intent endpoint; the webhook handler must be verified working (token crediting confirmed) before any UI is built. This order catches the most common failure mode — signature verification from wrong body parsing — before any user-facing code exists. The backend can be fully tested with the Stripe CLI without any UI.
+
+**Delivers:** Working `POST /api/payments/create-intent` endpoint; working `POST /api/webhooks/stripe` with signature verification and idempotent token crediting via RPC; end-to-end verification with `stripe listen --forward-to` that tokens are credited on payment.
+
+**Uses:** `stripe` server SDK singleton, Supabase admin client, `credit_token_purchase` RPC, Zod v4 for request validation, existing `{ success: true; data } | { success: false; error }` return pattern.
+
+**Avoids:** Pitfall 2 (raw body — use `request.text()` not `request.json()`), Pitfall 4 (lean handler — target < 5 seconds total execution on Netlify), Pitfall 12 (handle `payment_intent.payment_failed` events, not just `succeeded`).
+
+**Key tasks:**
+- `src/lib/stripe/server.ts`: Stripe server SDK singleton
+- `src/app/api/payments/create-intent/route.ts`: authenticate from cookies, validate tier, create PaymentIntent, insert pending `token_purchases` row, return `{clientSecret}`
+- `src/app/api/webhooks/stripe/route.ts`: `request.text()` raw body, `constructEvent()` signature verify, insert `stripe_events` for dedup, call `credit_token_purchase` RPC, return 200
+- Run `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and verify token credited to ledger before proceeding
+
+**Research flag:** Needs careful attention — the `request.text()` raw body pattern and Netlify timeout constraints are the most common failure mode for Stripe + Next.js integrations. Do not proceed to Phase 4 until the webhook round-trip is verified.
+
+### Phase 4: Frontend — Buy Page + Express Checkout UI
+
+**Rationale:** All server-side infrastructure is verified before building the UI. The frontend wraps well-tested Stripe primitives and the existing shadcn/ui component library — this is the lowest-risk phase. The fallback Payment Element must be included from the start, not added later; designing around it from the beginning prevents a blank payment page for users without configured wallets.
+
+**Delivers:** `/buy` route with tier selection; Express Checkout Element rendering Apple Pay / Google Pay buttons; Payment Element fallback for users without wallets; purchase success/processing state; token balance animation on credit via existing Realtime subscription.
+
+**Uses:** `@stripe/stripe-js` `loadStripe()` singleton, `@stripe/react-stripe-js` `<Elements>`, `<ExpressCheckoutElement>`, `<PaymentElement>`, existing shadcn/ui Card/Button/Badge, existing Sonner toast, existing `useUserBalance` hook.
+
+**Avoids:** Pitfall 8 (invisible buttons when no wallet configured — include `<PaymentElement>` fallback), Pitfall 10 (no fallback for users without wallets), Pitfall 3 (do NOT credit tokens in `onConfirm` — fulfill only via webhook; Realtime handles the balance update).
+
+**Key tasks:**
+- `src/lib/stripe/client.ts`: `loadStripe()` outside component render
+- `src/app/(app)/buy/page.tsx`: server component shell with metadata
+- `src/app/(app)/buy/BuyTokensClient.tsx`: client component; `<Elements>` provider with tier-based `amount`, `mode: 'payment'`, `currency: 'usd'`
+- `src/components/payments/TierSelector.tsx`: pack cards with pricing, bonus callouts, "Most Popular" badge on $10 tier
+- `src/components/payments/ExpressCheckout.tsx`: `<ExpressCheckoutElement onConfirm={...}>` calling create-intent endpoint; `onReady` callback to detect if any buttons rendered and conditionally show fallback
+- `src/components/payments/PurchaseSuccess.tsx`: post-payment processing state that resolves via Realtime balance update
+
+**Research flag:** Standard patterns — Express Checkout Element integration follows official Stripe React docs exactly.
+
+### Phase 5: Integration Polish + Entry Points
+
+**Rationale:** Once the buy flow is verified end-to-end, add the high-value entry points that drive actual purchase conversions and complete the feature surface. The BetSlip CTA is the highest-converting placement and should be prioritized. Terms of Service must be updated before go-live — this is non-negotiable given the regulatory risk.
+
+**Delivers:** "Buy Tokens" CTA in BetSlip on insufficient balance; low-balance nudge banner; "Buy" link in BottomNav; purchase history section on profile page; Terms of Service update covering token non-convertibility.
+
+**Uses:** Existing BetSlip component, existing BottomNav, existing profile page, `token_purchases` table (SELECT WHERE `user_id = auth.uid()` AND `status = 'completed'`).
+
+**Avoids:** Pitfall 14 (regulatory exposure — ToS must explicitly state tokens are non-convertible, non-transferable, and prizes are contest winnings not token redemptions).
+
+**Key tasks:**
+- BetSlip: intercept insufficient-balance validation error, render "Buy more tokens" link to `/buy` with pre-selected tier
+- BottomNav: add "Buy" nav item
+- `src/components/payments/PurchaseHistory.tsx`: component for profile page; display date, USD amount, tokens received, payment ID
+- ToS update: tokens are a limited, non-transferable license with no cash value; prizes are performance-based contest winnings
+- Verify Apple Pay button appears on a real iPhone in Safari on `frontrun.bet`
+
+**Research flag:** Legal gap — Terms of Service language should be reviewed against FinCEN convertible virtual currency guidance before accepting the first real payment. This is not covered by the existing codebase.
+
+### Phase 6: Go Live
+
+**Rationale:** Final switch from test to live Stripe keys, smoke test with real payment, and monitoring confirmation. Must not be rushed — the "Looks Done But Isn't" checklist in PITFALLS.md should be run item by item.
+
+**Delivers:** Live payments accepted on `frontrun.bet`; production webhook endpoint active with live-mode secret; smoke test confirmed with real $5 purchase.
+
+**Avoids:** Pitfall 6 (confirm Netlify environment uses LIVE mode webhook secret, not test mode secret — they look identical in format but are different values).
+
+**Key tasks:**
+- Switch `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` to live mode values in Netlify environment variables
+- Create and register live-mode webhook endpoint in Stripe Dashboard pointing to `https://frontrun.bet/api/webhooks/stripe`
+- Run full "Looks Done But Isn't" checklist from PITFALLS.md
+- Purchase a $5 pack with a real card; verify tokens credited in ledger; verify purchase appears in history; verify Stripe Dashboard shows successful delivery
 
 ### Phase Ordering Rationale
 
-- **Auth before everything:** User identity gates token grants, bets, and market creation. No flexibility here.
-- **AMM isolated before integrated:** Testing CPMM math in pure isolation catches precision bugs before they touch real data. Once wired to a live DB with real users, a math bug in production corrupts balances.
-- **Atomic transactions from day one:** Race condition fixes cannot be applied retroactively without a full balance audit. The correct pattern (server-side AMM + atomic DB transaction) must be established in Phase 3.
-- **Resolution before leaderboard:** A leaderboard of starting balances is meaningless. The leaderboard only becomes a product feature after several markets resolve and tokens redistribute.
-- **Multiple-choice after binary is proven:** Each option in a multiple-choice market gets its own AMM pool. This adds non-trivial complexity. Don't tackle it until binary CPMM is production-proven.
-- **Comments are decoupled:** Can be added in Phase 5 without touching betting or AMM logic at all — no reason to include earlier.
+- Database migrations must precede all backend code — the `token_ledger` constraint rejection (Pitfall 7) silently fails every payment until fixed, and fixing it after go-live means manual reconciliation with affected users
+- Backend Route Handlers must be verified before frontend is built — signature verification failures and Netlify timeout issues are caught early with the Stripe CLI before any user-facing code exists
+- Apple Pay domain registration runs in parallel with infrastructure setup — it has no code dependency but can take 24 hours to propagate, so starting it early avoids blocking go-live
+- Entry points and purchase history come last because they depend on the buy flow being stable and tested
+- Legal/ToS update is gated to Phase 5 (before go-live), not Phase 1, because the feature is not live and not accepting real payments yet; however it must be complete before Phase 6
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 3 (Betting):** Supabase-specific patterns for `SELECT FOR UPDATE` + `BEGIN...COMMIT` from Next.js Server Actions vs. API routes need verification; the exact transaction API in the Supabase JS client vs. raw Postgres client matters
-- **Phase 5 (Multiple-choice markets):** Per-option AMM pool normalization (probabilities must sum to 100%) is underdocumented for non-blockchain apps; needs a dedicated spike
+Needs careful attention during implementation:
+- **Phase 3 (Backend Route Handlers):** Webhook raw body handling (`request.text()` not `request.json()`) and Netlify's 10-second timeout are the most common failure modes for this integration stack. Do not advance to frontend until the webhook round-trip is verified with `stripe listen`.
+- **Phase 5 (Integration):** Terms of Service language and regulatory positioning require legal review before the first real payment is accepted. The FinCEN convertible virtual currency guidance is a real risk, not a hypothetical.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Auth):** Supabase phone OTP is official, well-documented, and straightforward
-- **Phase 2 (AMM math):** CPMM math is deterministic and fully documented; implementation is ~50 lines
-- **Phase 4 (Resolution):** Standard PostgreSQL transaction pattern, no novel integration required
+Standard patterns (follow existing codebase, no additional research needed):
+- **Phase 1 (Database):** Follows the existing `place_bet` atomic RPC pattern exactly
+- **Phase 2 (Stripe Account Setup):** Documented Stripe dashboard workflow; no code
+- **Phase 4 (Frontend):** Express Checkout Element follows official Stripe React docs; uses existing shadcn/ui components
+- **Phase 6 (Go Live):** Environment variable swap and smoke test; checklist-driven
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All choices verified against official docs (Next.js, Supabase, Twilio Verify). Version compatibility confirmed. |
-| Features | MEDIUM | Table stakes features verified against Manifold/Polymarket/Gnosis docs. Small-community-niche features (informal prizes, tight social group) inferred from first principles — no direct published analogs. |
-| Architecture | MEDIUM-HIGH | CPMM math and ledger patterns verified across multiple authoritative sources. Supabase Realtime and transaction patterns verified via official docs. Polymarket internal architecture is inferred (no official architectural docs). |
-| Pitfalls | HIGH | Critical pitfalls (race conditions, resolution disputes, multi-account gaming) are well-documented across prediction market literature and Twilio fraud documentation. |
+| Stack | HIGH | All three packages verified on npm with recent publish dates; official Stripe docs confirm React 19 compatibility and Express Checkout Element as the current recommended approach |
+| Features | HIGH | Feature set is well-defined with explicit anti-features scoped out; token pack pricing follows verified mobile game monetization patterns; table stakes list directly maps to Stripe's documented capabilities |
+| Architecture | HIGH | Route Handler pattern verified for Next.js App Router; Supabase RPC atomic pattern already proven in existing `place_bet`; Realtime integration requires zero new code; integration points with existing system are minimal and well-understood |
+| Pitfalls | HIGH (webhook/idempotency), MEDIUM (Netlify-specific) | Webhook raw body and idempotency pitfalls are extensively documented in official Stripe docs and community posts; Netlify timeout behavior has community reports but no official Stripe/Netlify joint documentation |
 
-**Overall confidence:** HIGH for what to build and how to build it. MEDIUM for exact feature scope of v1.x (the engagement layer after core loop).
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Supabase transaction API in Next.js context:** The Supabase JS client does not expose a raw `BEGIN...COMMIT` API directly. The correct pattern for atomic multi-step writes in Next.js Server Actions needs a brief spike — options are Supabase RPC (stored procedure), `pg` client via Supabase connection string, or Supabase Edge Functions. Resolve before Phase 3 planning.
-- **Multiple-choice AMM normalization:** How to enforce that per-option pool probabilities sum to 1.0 across N independent CPMM pools is unresolved. This may require a market-level normalization step after each bet. Needs a dedicated design spike before Phase 5 planning.
-- **VoIP blocking via Twilio Lookup:** Confirmed in Twilio docs that VoIP rejection requires enabling `line_type_intelligence` add-on. Pricing and configuration steps not yet verified. Validate before Phase 1 goes to production.
-- **Supabase Realtime connection limits on free tier:** Free tier has a limit on simultaneous Realtime connections. At 20 users all viewing a hot market simultaneously, this should be fine — but the exact limit needs confirmation before any scaling discussion.
+- **Netlify function timeout under real load:** Research confirms the 10-second limit is a risk and provides mitigation (lean handler + single RPC). Validate actual execution time with a simulated load test of the webhook handler before go-live; if it consistently exceeds 7 seconds, consider Netlify Background Functions (paid plan) or routing the webhook through a Supabase Edge Function.
+- **Apple Pay `/.well-known/` serving on Netlify:** The domain verification file path is documented to work with Next.js `public/` directory, but there are community reports of Next.js middleware intercepting it. Verify with `curl` after initial deploy before spending time debugging Apple Pay behavior.
+- **Legal/regulatory positioning:** The USD-in/prize-out pattern may trigger money transmitter classification under FinCEN. Research documents the risk and the mitigation approach (ToS language, no token transfers, prize-as-contest framing), but this is not legal advice and must be reviewed by a lawyer before accepting the first real payment.
+- **Stripe Link behavior:** Express Checkout Element includes Stripe Link (one-tap repeat purchases for returning users) automatically. Its behavior has not been specifically tested in this integration context; it is a nice-to-have that comes free and can be verified during Phase 6 smoke testing.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Next.js 16 official blog](https://nextjs.org/blog/next-16) — Turbopack default, React 19.2, caching APIs
-- [Next.js PWA official guide](https://nextjs.org/docs/app/guides/progressive-web-apps) — Built-in manifest, service worker, web-push (updated 2026-02-16)
-- [Supabase phone login docs](https://supabase.com/docs/guides/auth/phone-login) — Twilio Verify integration, OTP flow
-- [Supabase Realtime docs](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes) — Postgres changes subscription
-- [Gnosis Conditional Tokens AMM docs](https://conditionaltokens-docs.dev.gnosisdev.com/conditionaltokens/docs/introduction3/) — CPMM vs LMSR comparison
-- [Paradigm pm-AMM research](https://www.paradigm.xyz/2024/11/pm-amm) — CPMM tradeoffs, LP loss mechanics
-- [Twilio Verify pricing](https://www.twilio.com/en-us/verify/pricing) — $0.05/verification + $0.0083/SMS
-- [Twilio fraud prevention docs](https://www.twilio.com/docs/verify/preventing-toll-fraud) — VoIP blocking, rate limiting
-- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — Migration complete
+- [Stripe Express Checkout Element](https://docs.stripe.com/elements/express-checkout-element) — integration pattern, Apple Pay / Google Pay / Link support, `onConfirm` handler flow
+- [Accept a Payment with Express Checkout Element — React](https://docs.stripe.com/elements/express-checkout-element/accept-a-payment?client=react) — `elements.submit()` sequence, `<Elements>` provider configuration
+- [Stripe Payment Request Button Migration Guide](https://docs.stripe.com/elements/express-checkout-element/migration) — confirms Express Checkout Element is the recommended replacement
+- [Stripe Apple Pay Web](https://docs.stripe.com/apple-pay?platform=web) — domain verification requirements, test vs live mode registration
+- [Stripe Webhook Handling](https://docs.stripe.com/webhooks/handling-payment-events) — event types, retry behavior, event ordering
+- [Stripe Webhook Signature Verification](https://docs.stripe.com/webhooks/signature) — raw body requirement, `constructEvent` pattern, common errors
+- [Stripe Idempotent Requests](https://docs.stripe.com/api/idempotent_requests) — official idempotency key documentation
+- [Stripe Checkout Sessions vs PaymentIntents](https://docs.stripe.com/payments/checkout-sessions-and-payment-intents-comparison) — decision rationale for PaymentIntents + Express Checkout over hosted Checkout
+- [Stripe React.js SDK Reference](https://docs.stripe.com/sdks/stripejs-react) — `<Elements>` provider, hooks API
+- [Stripe Test Wallets](https://docs.stripe.com/testing/wallets) — Apple Pay / Google Pay test device setup
+- [npm: stripe ^20.3.1](https://www.npmjs.com/package/stripe) — version and active maintenance status
+- [npm: @stripe/stripe-js ^8.8.0](https://www.npmjs.com/package/@stripe/stripe-js) — version and React 19 compatibility
+- [npm: @stripe/react-stripe-js ^5.6.0](https://www.npmjs.com/package/@stripe/react-stripe-js) — React 19 compatibility confirmed
 
 ### Secondary (MEDIUM confidence)
-- [Manifold Markets — Market Mechanics](https://news.manifold.markets/p/above-the-fold-market-mechanics) — CPMM/Maniswap as production AMM
-- [Manifold Markets FAQ](https://docs.manifold.markets/faq) — Token system, market types, creator resolution model
-- [Polymarket documentation](https://docs.polymarket.com/) — CPMM usage, market structure
-- [Polkamarkets AMM documentation](https://help.polkamarkets.com/how-polkamarkets-works/automated-market-maker-(amm)) — CPMM math verification
-- [pgledger — Ledger implementation in PostgreSQL](https://www.pgrs.net/2025/03/24/pgledger-ledger-implementation-in-postgresql/) — Append-only ledger pattern
+- [Next.js App Router Stripe Webhook](https://medium.com/@gragson.john/stripe-checkout-and-webhook-in-a-next-js-15-2025-925d7529855e) — `request.text()` vs `request.json()` for raw body in App Router route handlers
+- [Stripe + Next.js Complete Guide 2025](https://www.pedroalonso.net/blog/stripe-nextjs-complete-guide-2025/) — server actions pattern for PaymentIntent creation
+- [Netlify Functions Timeout Documentation](https://answers.netlify.com/t/support-guide-why-is-my-function-taking-long-or-timing-out/71689) — 10-second limit, background functions option
+- [Netlify Stripe Webhook Inconsistency Thread](https://answers.netlify.com/t/netlify-functions-not-executing-stripe-webhook-events-consistently/48846) — community evidence of function timeout issues
+- [Netlify Apple Pay domain verification forum](https://answers.netlify.com/t/apple-pay-verification-using-well-known/16642) — `/.well-known/` serving on Netlify with Next.js
+- [Handling Duplicate Stripe Events](https://www.duncanmackenzie.net/blog/handling-duplicate-stripe-events/) — practical database deduplication implementation
+- [Hookdeck Webhook Idempotency Guide](https://hookdeck.com/webhooks/guides/implement-webhook-idempotency) — database upsert pattern for deduplication
+- [Virtual currency monetization patterns](https://www.revenuecat.com/blog/engineering/how-to-monetize-your-ai-app-with-virtual-currencies/) — tier pricing psychology, bonus token patterns
 
-### Tertiary (LOW confidence)
-- [BettorEdge — Social prediction markets](https://www.bettoredge.com/post/social-prediction-markets-the-next-evolution-in-sports-betting) — Social feature patterns
-- [EA Forum — Manifold Markets critique](https://forum.effectivealtruism.org/posts/EaR9xFxspmYRkm3eo/manifold-markets-isn-t-very-good) — Incentive misalignment, puppet accounts
-- [InGame — Cheating in prediction markets](https://www.ingame.com/everyone-cheating-prediction-markets/) — Gaming patterns and prevalence
-- [Decrypt — Prediction market wash trading](https://decrypt.co/357583/prediction-markets-grew-4x-to-63-5b-in-2025-but-risk-structural-strain-certik) — Wash trading volume statistics
+### Tertiary (MEDIUM-LOW confidence — legal, not technical)
+- [Venable — Regulatory Risks of Virtual Currency](https://www.venable.com/insights/publications/2017/05/regulatory-risks-of-ingame-and-inapp-virtual-curre) — money transmitter classification risk for in-app virtual currencies
+- [FinCEN Virtual Currency Guidance](https://www.fincen.gov/resources/statutes-regulations/guidance/application-fincens-regulations-persons-administering) — convertible virtual currency definitions and FinCEN registration triggers
 
 ---
-*Research completed: 2026-02-19*
+*Research completed: 2026-02-21*
 *Ready for roadmap: yes*

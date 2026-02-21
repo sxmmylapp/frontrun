@@ -1,262 +1,474 @@
-# Pitfalls Research
+# Domain Pitfalls
 
-**Domain:** Community prediction market — virtual tokens, AMM odds, leaderboard prizes
-**Researched:** 2026-02-19
-**Confidence:** HIGH (critical pitfalls), MEDIUM (performance/UX pitfalls)
+**Domain:** Adding USD token purchases (Stripe + Apple Pay / Google Pay) to existing prediction market
+**Researched:** 2026-02-21
+**Confidence:** HIGH (webhook/idempotency pitfalls well-documented), MEDIUM (Netlify-specific edge cases)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Wrong LMSR `b` Parameter — Market Prices Never Reflect Reality
+### Pitfall 1: Double-Crediting Tokens on Duplicate Webhook Events
 
 **What goes wrong:**
-You pick an LMSR `b` value that is too large for your user base. With 10-20 users holding a fixed token supply, no one has enough capital to move prices toward their true probabilities. Markets read 50/50 forever, regardless of how obvious the likely outcome is. Users stop trusting the odds and stop betting.
-
-Conversely, a `b` that is too small means a single large bet by one user swings prices 40% in one trade, creating wild instability and discouraging other participants.
+Stripe delivers the `payment_intent.succeeded` webhook. Your handler inserts a row into `token_ledger` crediting 500 tokens. Network hiccup causes Stripe not to receive your 200 response. Stripe retries the same event 30 seconds later. Your handler inserts *another* 500 tokens. The user paid $5 once but received 1,000 tokens. With the append-only ledger architecture, there is no mutable balance to check -- every INSERT is additive by design, making double-credits especially dangerous.
 
 **Why it happens:**
-Developers copy `b` values from tutorials or large-platform examples, without accounting for their expected trading volume. LMSR's `b` is described even in academic literature as a "black art" that is context-dependent. Small community apps have drastically less liquidity than the examples those defaults were designed for.
+Stripe retries failed webhooks for up to 3 days. Your serverless function may time out (Netlify has a 10-second limit on free/starter plans), return an error, or simply not acknowledge fast enough. Stripe treats anything other than a 2xx response as a failure and resends. The append-only `token_ledger` has no natural deduplication -- every INSERT increases the balance.
 
-**How to avoid:**
-- Size `b` to your total token supply. A common starting formula: `b = total_tokens_in_circulation / (N * 10)` where N is the number of outcomes. Adjust after testing.
-- Run a simulation with your expected token supply (e.g., 20 users × 1000 tokens each = 20,000 tokens) before launch.
-- Aim for a single 100-token bet moving odds by roughly 2-5 percentage points — test this by hand before deploying.
-- Document the `b` value as a tunable constant with a clear comment explaining the tradeoff.
+**Consequences:**
+- Users receive free tokens they didn't pay for
+- Token economy inflates, distorting leaderboard rankings and prize fairness
+- Extremely difficult to detect after the fact because the ledger entries look legitimate
+- If discovered, manual correction requires negative `adjustment` entries and awkward user communication
 
-**Warning signs:**
-- All markets hover near 50/50 regardless of topic
-- A single trade moves odds by more than 15 percentage points
-- Users comment that the odds "don't feel right"
+**Prevention:**
+1. **Create a `stripe_events` table with a UNIQUE constraint on `event_id`:**
+   ```sql
+   CREATE TABLE stripe_events (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     event_id TEXT UNIQUE NOT NULL,  -- Stripe event ID (evt_xxx)
+     event_type TEXT NOT NULL,
+     payment_intent_id TEXT,
+     processed_at TIMESTAMPTZ DEFAULT NOW(),
+     status TEXT DEFAULT 'processed'
+   );
+   ```
+2. **In the webhook handler, INSERT into `stripe_events` first.** If the insert fails with a unique violation, return 200 immediately and skip processing. The database constraint handles race conditions that application-level checks cannot.
+3. **Use a Supabase RPC stored procedure** (matching the existing `place_bet` pattern) that atomically: checks for duplicate event ID, inserts the event record, and inserts the `token_ledger` credit -- all in one transaction.
+4. **Always return 200 for duplicate events.** Returning an error causes Stripe to keep retrying, creating more duplicate attempts.
 
-**Phase to address:** AMM core implementation phase (first phase that implements betting)
+**Detection:**
+- Monitor for multiple `token_ledger` entries with reason `token_purchase` and the same `reference_id` (payment intent ID)
+- Alert if any user's balance spikes by more than the maximum pack size (500 tokens for $20) in a single minute
+- Query `stripe_events` for duplicate `event_id` attempts (track even the rejected ones)
+
+**Phase to address:** Webhook handler implementation -- this must be the FIRST thing built, before any payment flow
 
 ---
 
-### Pitfall 2: LMSR Cost Function Rounding Errors Corrupt Token Balances
+### Pitfall 2: Webhook Signature Verification Fails Due to Body Parsing
 
 **What goes wrong:**
-LMSR requires computing `b * ln(sum of e^(q_i/b))` for all outcomes. Implemented naively in JavaScript with floating-point arithmetic, cumulative rounding errors over many trades cause the system's internal accounting to drift. Users end up with fractional tokens that don't sum correctly, or a bet costs slightly different than the UI previewed. Over time, token totals become inconsistent and admin resolution payouts are wrong.
+The Stripe webhook arrives. Your Next.js App Router route handler parses the body as JSON (via `request.json()`) and passes it to `stripe.webhooks.constructEvent()`. Signature verification fails every time. All webhooks are rejected. No payments are credited. Users pay money but receive nothing.
 
 **Why it happens:**
-Floating-point arithmetic is non-deterministic at the sub-cent level across platforms. Developers test with small examples and don't notice drift until hundreds of trades have accumulated. The LMSR formula involves exponentials which amplify small errors.
+Stripe's signature verification requires the **raw request body** as a string, not a parsed JSON object. When you parse JSON and re-stringify it, whitespace, key ordering, and Unicode escaping may differ from the original. The HMAC signature computed over the re-stringified body will not match the signature Stripe computed over the raw body. This is the single most common Stripe webhook integration bug, documented extensively across Next.js issue trackers.
 
-**How to avoid:**
-- Store all token quantities as integers (millitokens — multiply by 1000). Never store fractional tokens.
-- Implement the cost function using a numerically stable log-sum-exp trick to avoid overflow.
-- After every trade, assert that `sum(all outcome shares) == total_collateral_deposited`. Fail loudly if this invariant breaks.
-- Write a test that runs 1000 sequential trades and verifies balance integrity after each one.
+**Consequences:**
+- Every webhook fails silently (your handler returns 400)
+- Stripe retries for 3 days, all fail
+- Users are charged but never receive tokens
+- Requires manual reconciliation via Stripe dashboard
 
-**Warning signs:**
-- Token totals differ by small amounts after resolution
-- Bet preview shows 47 tokens cost but deduction is 47.002
-- Running sum checks in tests start failing intermittently
+**Prevention:**
+```typescript
+// src/app/api/webhooks/stripe/route.ts
+export async function POST(request: Request) {
+  const body = await request.text();  // RAW body, not request.json()
+  const signature = request.headers.get('stripe-signature')!;
 
-**Phase to address:** AMM core implementation phase — build the invariant check into the initial implementation, not as a follow-up
+  const event = stripe.webhooks.constructEvent(
+    body,
+    signature,
+    process.env.STRIPE_WEBHOOK_SECRET!
+  );
+  // ...handle event
+}
+```
+- **Never** use `request.json()` in a webhook handler
+- **Never** use middleware that parses request bodies before the webhook route
+- Test signature verification with `stripe listen --forward-to localhost:3000/api/webhooks/stripe` during development
+
+**Detection:**
+- Stripe Dashboard > Webhooks shows all deliveries failing with signature mismatch
+- Server logs show `stripe.webhooks.constructEvent` throwing `WebhookSignatureVerificationError`
+
+**Phase to address:** Webhook endpoint setup -- verify this works before building any payment flow
 
 ---
 
-### Pitfall 3: Race Conditions on Simultaneous Bets — Negative Balances and Double-Spends
+### Pitfall 3: Payment Succeeds Client-Side But Tokens Never Arrive (Fulfillment Race)
 
 **What goes wrong:**
-Two users place bets at the same time. Both requests read the same market state, compute their cost, deduct from their balances, and write back. One deduction overwrites the other. Result: the market's outcome share counts are wrong, one user's tokens vanish, or a user ends up with a negative balance.
-
-At small scale (10-20 users) this seems unlikely but becomes near-certain during any exciting market — the exact moments when multiple people bet simultaneously.
+User taps Apple Pay, sees the checkmark animation, the Express Checkout Element's `onComplete` fires on the client. Your frontend shows "Purchase complete!" and navigates the user to the feed. But the webhook hasn't arrived yet (or failed silently). The user's balance hasn't changed. They refresh, still no tokens. They paid real money and got nothing.
 
 **Why it happens:**
-Developers treat bet placement as two sequential operations (read state, write state) without wrapping them in a transaction or using row-level locking. ORMs make it easy to do `user.balance -= cost; user.save()` without realizing this is not atomic.
+The client-side payment confirmation and the server-side webhook are **completely independent, asynchronous events**. The webhook may arrive before, during, or after the client-side callback. On Netlify's serverless functions, cold starts can add 1-3 seconds of latency. If the webhook handler errors, the user has no idea.
 
-**How to avoid:**
-- Every bet must be a single database transaction that: (1) SELECT FOR UPDATE locks the user row and market row, (2) validates the user has sufficient balance, (3) updates the outcome share quantities, (4) recomputes and stores new odds, (5) deducts from user balance, (6) inserts the bet record — all in one commit.
-- Never compute the LMSR cost outside the transaction and then apply it inside; compute inside.
-- Add a unique constraint on (user_id, market_id, timestamp_ms) to catch any duplicate submissions.
+Developers commonly make one of two mistakes:
+1. **Fulfillment in the client callback only** -- credit tokens when `onComplete` fires. Works in testing, but the user can close the browser, lose connectivity, or the request can fail. Tokens are never credited.
+2. **Fulfillment in both client callback AND webhook** -- leads to double-crediting (Pitfall 1).
 
-**Warning signs:**
-- Any user balance ever goes below zero
-- Market outcome shares don't sum to what you expect
-- Duplicate bet records for the same user within the same millisecond
+**Consequences:**
+- Users pay real money and receive nothing
+- Support burden: "I paid but didn't get my tokens"
+- Trust destruction -- this is the worst possible user experience for a paid feature
 
-**Phase to address:** AMM core implementation phase — this must be correct from day one; retrofitting transactions later is a nightmare
+**Prevention:**
+1. **Fulfill ONLY via webhook.** The webhook is the single source of truth for payment completion. Never credit tokens from client-side code.
+2. **Client-side: poll for fulfillment.** After payment confirmation, poll the user's balance or a `purchases` table for the specific payment intent ID. Show a spinner: "Confirming your purchase..." until the webhook has processed.
+3. **Implement a fulfillment status endpoint:**
+   ```typescript
+   // GET /api/purchases/[payment_intent_id]/status
+   // Returns: { status: 'pending' | 'completed' | 'failed' }
+   ```
+4. **Timeout with helpful message:** If polling exceeds 15 seconds, show: "Your payment was received. Tokens may take up to a minute to appear. Contact support if they don't arrive within 5 minutes."
+5. **The existing Supabase Realtime subscription on `token_ledger`** (`useUserBalance` hook) will automatically update the balance when the webhook inserts the ledger entry. Leverage this instead of building a separate polling mechanism.
+
+**Detection:**
+- Stripe shows successful payments that have no corresponding `token_ledger` entry
+- Users reporting zero-balance after purchase
+
+**Phase to address:** Payment flow integration -- build the polling/realtime approach alongside the Express Checkout Element
 
 ---
 
-### Pitfall 4: Ambiguous Market Resolution Criteria — Admin Bias and User Fury
+### Pitfall 4: Webhook Endpoint Times Out on Netlify (10-Second Limit)
 
 **What goes wrong:**
-A market asks "Will the team win the championship?" The admin resolves it YES. A user argues they only made finals, not the championship. The admin resolves subjectively and half the community loses tokens on what they believe was a bad call. Trust collapses. On a small community platform, this is existential — the entire user base is 20 people and they all know each other.
+Your webhook handler receives the Stripe event, verifies the signature, checks for duplicates, inserts into `stripe_events`, inserts into `token_ledger` via RPC, and tries to return 200. But the Supabase RPC call takes 3 seconds due to a cold connection, and combined with signature verification and the initial Netlify cold start, the total execution exceeds Netlify's 10-second function timeout. Netlify kills the function. Stripe gets no response. Stripe retries. The retry hits the same timeout. After 3 days and dozens of retries, Stripe marks the webhook as permanently failed.
 
 **Why it happens:**
-Market creation forms don't enforce specific resolution criteria. Users write vague questions without resolution rules. The admin resolves based on their interpretation when no authoritative rule was written. This is the #1 documented cause of prediction market disputes, from Polymarket's $200M Zelensky suit market to UMA oracle manipulation.
+Netlify serverless functions (which Next.js API routes compile to on Netlify) have a hard 10-second timeout on free/starter plans (26 seconds on Pro). Supabase connections from serverless functions suffer cold start latency. Multiple developers have reported Netlify functions being "completely unresponsive" for webhook events -- not timing out in the expected way but simply never executing.
 
-**How to avoid:**
-- Market creation form must have a required "Resolution criteria" field separate from the question text. Example: "YES if the official league standings on [source URL] show [Team] in 1st place by [date]."
-- Admin resolution UI should show the original resolution criteria prominently before confirming.
-- Create a small set of resolution rule templates (sports outcome, price threshold, yes/no event happened) and let creators pick a template.
-- For v1, admin should only resolve after posting the source of truth in a visible way (e.g., a comment or link on the market).
+**Consequences:**
+- Intermittent fulfillment failures -- some payments go through, others don't
+- Extremely hard to debug because it's timing-dependent
+- Users lose trust when payment reliability is unpredictable
 
-**Warning signs:**
-- Market descriptions say things like "if it goes well" or "roughly"
-- Users posting complaints in Discord/chat after resolution
-- Same admin resolving markets they have large positions in
+**Prevention:**
+1. **Keep the webhook handler minimal.** Verify signature, check duplicate, INSERT into a `pending_purchases` table, return 200 immediately. Process the actual token credit asynchronously.
+2. **Use a Supabase database trigger** instead of application-level processing: when a row is inserted into `pending_purchases`, a trigger function handles the `token_ledger` insert. This moves the heavy work out of the serverless function.
+3. **Alternatively, use the atomic RPC approach** but ensure the RPC is fast (< 2 seconds). Pre-warm the Supabase connection by making a lightweight query first. The existing `place_bet` RPC pattern shows this works.
+4. **Monitor webhook delivery in Stripe Dashboard** -- set up email alerts for webhook failure rates above 0%.
+5. **If timeouts persist, consider Netlify Background Functions** (available on paid plans) which allow 15-minute execution, or use a Supabase Edge Function as the webhook endpoint instead of a Next.js route.
 
-**Phase to address:** Market creation phase AND admin resolution phase — enforce at both entry and resolution time
+**Detection:**
+- Stripe Dashboard shows webhook deliveries with timeout errors
+- Netlify function logs show truncated execution
+- Inconsistent token crediting (some payments work, some don't)
 
----
-
-### Pitfall 5: Leaderboard Gaming — Multi-Account and Wash Betting
-
-**What goes wrong:**
-When a real USD prize is attached to the leaderboard, even friends will game it. A user creates a second account (or convinces a friend to act as a dummy), bets heavily on both sides of the same market, guarantees a winning side takes the tokens, and inflates their leaderboard position with zero forecasting skill. On Polymarket, wash trading peaked near 60% of volume when incentives were attached.
-
-**Why it happens:**
-Virtual tokens feel low-stakes until a real prize appears. The combination of (a) free token grants on signup, (b) an AMM that always takes the bet, and (c) a cash prize creates a mechanical exploit: create accounts, bet against yourself, farm tokens to the winning account.
-
-**How to avoid:**
-- Require phone number verification and enforce one-account-per-phone-number at the database level (unique index on `phone_number`). Block VoIP numbers via Twilio Lookup API.
-- Log all bets with IP address, user agent, and device fingerprint. Flag when two accounts share the same device/IP and bet on opposite sides of the same market.
-- For the prize period, require accounts to be at least X days old (e.g., 7 days) and have placed bets on at least Y distinct markets.
-- Consider a "net profit skill score" instead of raw token balance — this penalizes the practice of farming both sides.
-
-**Warning signs:**
-- Two accounts with similar names register near-simultaneously from the same IP
-- A user's win rate is near 100% (impossible without wash trading or insider knowledge)
-- Token velocity spikes on low-interest markets just before a leaderboard cutoff
-
-**Phase to address:** Auth + leaderboard phase — build the phone uniqueness constraint before any prize is announced
+**Phase to address:** Infrastructure/deployment setup -- test webhook round-trip latency before going live
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 6: Token Inflation Makes Early Adopters Permanently Dominant
+### Pitfall 5: Apple Pay Domain Verification Missing or Incomplete
 
 **What goes wrong:**
-Early users accumulate tokens through lucky early markets. Later users join with the same starting balance but face opponents with 10x their tokens. The leaderboard becomes fixed within the first week, disengaging new users. Worse, users who "go broke" (near-zero balance) have no recovery path and churn.
-
-**How to avoid:**
-- Design periodic leaderboard resets (e.g., monthly competitions with a fresh starting balance). This is the most important structural decision for long-term engagement.
-- Give users a "daily bonus" or "weekly top-up" of a small token amount so zero-balance users can re-engage.
-- Track a "score" metric separately from raw token balance — e.g., profit percentage since last reset — rather than absolute token count.
-
-**Warning signs:**
-- Top-5 leaderboard positions unchanged for more than 2 weeks
-- New user churn spikes after they check the leaderboard for the first time
-- Users stop betting because they "don't want to lose their stack"
-
-**Phase to address:** Token economy and leaderboard design phase
-
----
-
-### Pitfall 7: Missing "What Happens to My Bet" Feedback Loop
-
-**What goes wrong:**
-A user bets on a market. The market closes for new bets. Then nothing happens for days or weeks until the admin resolves it. The user forgot they had a pending bet. When tokens appear in their account, they don't know why. Users disengage because the prediction loop — bet, wait, outcome, reward — has no feedback.
+You deploy the payment page. The Express Checkout Element renders. Google Pay button appears. Apple Pay button is invisible. You test on your iPhone in Safari -- nothing. Users on iPhones (likely a large portion of a friend group in the US) cannot pay.
 
 **Why it happens:**
-Developers build the betting UI but skip the notification and market lifecycle state machines. Markets exist in a limbo "closed but unresolved" state that is invisible to users.
+Apple Pay on the web requires explicit domain verification with Apple, handled through Stripe's dashboard or API. You must register:
+- Your production domain (`frontrun.bet`)
+- The `www` subdomain (`www.frontrun.bet`)
+- Any preview/staging domains
 
-**How to avoid:**
-- Implement explicit market states: `open`, `closed` (no new bets), `resolved`. Users can see their pending bets on all open/closed markets.
-- Push notifications (or SMS) when: (1) a market you bet on closes, (2) a market you bet on resolves, (3) your tokens are paid out.
-- "My Bets" dashboard showing pending positions, expected payout at current odds, and resolved history.
+Stripe hosts a verification file at `/.well-known/apple-developer-merchantid-domain-association` that Apple checks. If your Netlify deployment doesn't serve this file correctly (e.g., the path is rewritten by Next.js routing or blocked by middleware), verification silently fails.
 
-**Warning signs:**
-- Users asking "did my bet go through?" in chat
-- Zero return visits between market creation and resolution
-- No push notification infrastructure exists in the codebase
+**Consequences:**
+- Apple Pay unavailable to all iOS/Safari users
+- No error message shown to the user -- the button simply doesn't appear
+- Difficult to debug because it works in Chrome/Google Pay but not Safari/Apple Pay
 
-**Phase to address:** Bet placement phase (notifications) and market lifecycle phase
+**Prevention:**
+1. **Register domains in Stripe Dashboard** at Settings > Payment Method Domains before deploying the payment page
+2. **Register BOTH `frontrun.bet` AND `www.frontrun.bet`** -- Apple requires both
+3. **Verify the well-known file is accessible:** `curl https://frontrun.bet/.well-known/apple-developer-merchantid-domain-association` should return the Stripe-provided file
+4. **Ensure Next.js middleware doesn't intercept** the `/.well-known/` path -- add an exclusion to the auth middleware matcher:
+   ```typescript
+   export const config = {
+     matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.well-known).*)'],
+   };
+   ```
+5. **Test on a real iPhone with Safari** -- emulators and desktop Chrome do not surface Apple Pay issues
+
+**Detection:**
+- Express Checkout Element shows Google Pay but not Apple Pay on Safari/iOS
+- Stripe Dashboard shows domain verification status as "pending" or "failed"
+
+**Phase to address:** Deployment/domain setup -- do this BEFORE building the payment UI, since it requires DNS/hosting changes
 
 ---
 
-### Pitfall 8: Market Feed with No Markets, or Too Many Unresolved Markets
+### Pitfall 6: Using Wrong Webhook Secret (Test vs Live Mode Mismatch)
 
 **What goes wrong:**
-At launch, nobody has created markets yet — new users see an empty feed and leave immediately. Alternatively, after a month of use, the feed is clogged with 40 old unresolved markets and 3 new ones. Users can't find what's relevant.
+You develop with Stripe test mode, using `whsec_test_xxx`. You deploy to production and set the environment variable `STRIPE_WEBHOOK_SECRET` to... the same test mode secret. Or you create a new webhook endpoint in Stripe's dashboard but forget to switch from test mode to live mode before copying the secret. Every webhook in production fails signature verification.
 
-**How to avoid:**
-- Pre-seed the platform with 5-10 admin-created markets before inviting the first users.
-- Default feed sort: active (has recent bets), then closing soon, then new. Not chronological.
-- Surface "unresolved" markets in a separate section so they don't crowd out active ones.
-- Admin gets a dashboard showing: markets past their resolution date, markets with no bets, markets expiring in 24 hours.
+**Why it happens:**
+Stripe has **separate webhook secrets for test and live modes**, even for the same endpoint URL. The Stripe CLI's `stripe listen` generates yet another temporary secret (`whsec_xxx`) that is different from both. Developers who develop locally with `stripe listen`, then deploy, often hardcode the CLI's temporary secret.
 
-**Warning signs:**
-- The feed is sorted by creation date ascending (common ORM default)
-- Markets from 3 weeks ago appear above markets ending today
-- Zero bets on any market older than 7 days
+**Consequences:**
+- All production payments are charged but tokens never credited
+- Test mode works perfectly, creating false confidence
+- The error ("Webhook signature verification failed") looks identical to Pitfall 2, making diagnosis harder
 
-**Phase to address:** Market feed / discovery phase
+**Prevention:**
+1. **Use separate environment variables:** `STRIPE_WEBHOOK_SECRET_TEST` and `STRIPE_WEBHOOK_SECRET_LIVE`
+2. **Create webhook endpoints separately** in both test and live modes in the Stripe Dashboard
+3. **Set Netlify environment variables per context:** test secret for deploy previews, live secret for production
+4. **Never use the `stripe listen` CLI secret in deployed environments** -- it expires and is per-session
+5. **Smoke test after every deploy:** trigger a test payment and verify the webhook was received successfully in Stripe Dashboard > Webhooks > Recent Deliveries
 
----
+**Detection:**
+- Stripe Dashboard shows webhook deliveries failing with 400 status
+- Server logs show signature verification errors
+- Works locally with `stripe listen` but fails in production
 
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Store odds as computed floats in DB, not recomputed from source shares | Faster reads | Odds drift out of sync with actual share quantities; hard to audit | Never — always recompute from shares |
-| Skip transaction isolation on bet writes | Simpler code | Race conditions corrupt balances at any meaningful traffic | Never |
-| Use raw token balance as leaderboard metric | Easiest query | Incentivizes hoarding over participation, broken when tokens are reset | Only for a no-prize prototype |
-| Single admin account for resolution with no audit log | Simple to build | No accountability, disputes have no evidence trail | Never if prizes are involved |
-| Vague resolution criteria allowed in market creation | Less friction | Every resolution becomes a fight | Never — enforce specific criteria at creation |
+**Phase to address:** Environment configuration -- set up webhook secrets for both modes during initial Stripe setup
 
 ---
 
-## Integration Gotchas
+### Pitfall 7: Token Ledger `reason` CHECK Constraint Rejects Purchase Credits
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Twilio Verify | Not blocking VoIP numbers — allows disposable phone numbers for multi-account | Enable Twilio Lookup with `line_type_intelligence`; reject `voip` and `prepaid` line types |
-| Twilio Verify | Not rate-limiting verification requests — SMS pumping fraud charges you per send | Rate-limit to 1 request per phone per 30 seconds; enable Twilio Fraud Guard |
-| Supabase Realtime | Broadcasting every individual DB write to all connected clients — causes UI thrash on active markets | Debounce odds updates; only push when odds change by > 1% or on trade confirmation |
-| Push notifications (web) | Prompting for notification permission on first page load — 93% denial rate | Ask only after the user places their first bet with a contextual prompt ("Get notified when this resolves?") |
+**What goes wrong:**
+The webhook handler fires, signature verifies, duplicate check passes, and then the `token_ledger` INSERT fails with: `ERROR: new row for relation "token_ledger" violates check constraint "token_ledger_reason_check"`. The existing `reason` column has a CHECK constraint allowing only: `signup_bonus`, `bet_placed`, `resolution_payout`, `market_cancelled_refund`, `adjustment`. There is no `token_purchase` reason.
+
+**Why it happens:**
+The migration from v1 (00001_initial_schema.sql) defines a strict CHECK constraint on `token_ledger.reason`. Adding a new payment flow requires a database migration to add the new reason value. Developers who test with a fresh database that includes the new migration don't catch this because the constraint is already updated. But if the migration isn't applied to the production database first, the webhook handler will fail on every payment.
+
+**Consequences:**
+- Every token credit fails silently (or with an error that gets swallowed)
+- The webhook returns a 500, Stripe retries, all retries fail
+- Users are charged but never credited
+
+**Prevention:**
+1. **Write and apply the migration FIRST, before deploying any payment code:**
+   ```sql
+   -- 00006_add_token_purchase_reason.sql
+   ALTER TABLE token_ledger DROP CONSTRAINT token_ledger_reason_check;
+   ALTER TABLE token_ledger ADD CONSTRAINT token_ledger_reason_check
+     CHECK (reason IN (
+       'signup_bonus', 'bet_placed', 'resolution_payout',
+       'market_cancelled_refund', 'adjustment', 'token_purchase'
+     ));
+   ```
+2. **Deploy migrations before code.** Always. The new code must hit a database that already accepts the new reason value.
+3. **Add an integration test** that inserts a `token_ledger` row with reason `token_purchase` and verifies it succeeds.
+
+**Detection:**
+- Webhook handler returns 500 errors
+- Supabase logs show CHECK constraint violations
+- `token_ledger` has no entries with reason `token_purchase` despite successful Stripe payments
+
+**Phase to address:** Database migration -- deploy this migration as the very first step of the payments milestone
 
 ---
 
-## Performance Traps
+### Pitfall 8: Express Checkout Element Invisible Because No Wallet Configured
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Recomputing all LMSR odds on every page load instead of caching | Slow market feed; DB CPU spikes on refresh | Cache current odds per market in a dedicated column, invalidate on each bet | 10+ concurrent users refreshing the feed |
-| Querying all bets for a market to compute payouts at resolution | Resolution takes 10+ seconds, times out | Maintain running totals (outcome share quantities) updated per bet, never recompute from raw bet history | 500+ bets on a single market |
-| Loading full bet history for "my bets" without pagination | Page load slow, mobile users timeout | Paginate to last 20 bets; infinite scroll for history | 50+ bets per user |
-| N+1 query on market feed (one query per market for bet count/latest odds) | Feed takes 3+ seconds | Single JOIN query with aggregated stats | 20+ markets in feed |
+**What goes wrong:**
+You implement the Express Checkout Element, deploy it, test in your desktop Chrome browser. Nothing renders. No Apple Pay button, no Google Pay button, no error. Just an empty div. You think the code is broken and spend hours debugging.
+
+**Why it happens:**
+The Express Checkout Element **only renders buttons for wallets the user actually has configured.** If your Chrome browser has no card saved in Google Pay (check `chrome://settings/payments`), and you're not on Safari with Apple Pay set up, the element renders nothing. This is by design -- Stripe won't show a payment method the user can't use.
+
+During development, this creates a chicken-and-egg problem: you can't test the flow until you configure a wallet, but you don't know to configure a wallet because there's no error telling you to.
+
+**Consequences:**
+- Wasted debugging time thinking the integration is broken
+- Developers add hacky workarounds or switch to a different payment approach unnecessarily
+- Risk of shipping an untested payment flow
+
+**Prevention:**
+1. **Set up test wallets before developing:**
+   - Google Pay: Go to `chrome://settings/payments`, add test card `4242 4242 4242 4242`, any future expiry, any CVC
+   - Apple Pay: On macOS, add a card in Wallet & Apple Pay settings (real card works in Stripe test mode -- it generates test tokens without charging)
+2. **Add a fallback payment method.** The Express Checkout Element should be paired with a standard Payment Element or a "Pay with Card" button for users without configured wallets
+3. **Display a helpful message** when the Express Checkout Element renders empty: "To use Apple Pay or Google Pay, add a card to your device wallet. Or tap 'Pay with Card' below."
+4. **Use the `onReady` callback** to detect if any buttons rendered and conditionally show fallback UI
+
+**Detection:**
+- Express Checkout Element div is present in DOM but visually empty
+- No JavaScript errors in console
+- Works on one device but not another
+
+**Phase to address:** Payment UI implementation -- set up test wallets on day one of development
 
 ---
 
-## Security Mistakes
+### Pitfall 9: HTTPS Not Enforced / Mixed Content Blocks Apple Pay
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Exposing admin resolution endpoint without role check | Any user can resolve any market and steal tokens | Middleware role check on every admin route; RLS policy in Supabase for admin-only tables |
-| Trusting client-reported bet amount | User sends `amount: 999999` and bypasses balance check | Always validate and deduct balance server-side; never trust client-provided cost |
-| No rate limit on bet placement endpoint | Bot floods the market, manipulates odds programmatically | Rate limit to 1 bet per user per 3 seconds per market |
-| Displaying other users' phone numbers in leaderboard | Privacy violation — exposes personal data | Leaderboard shows display name only; phone number never leaves server after auth |
-| Admin can resolve markets they hold positions in | Conflict of interest; admin self-enrichment | Log admin's own positions at resolution time; surface warning in admin UI |
+**What goes wrong:**
+Your Netlify deployment serves over HTTPS, but somewhere in your app -- an image URL, a CDN link, an API call -- uses plain HTTP. Safari blocks Apple Pay on pages with mixed content. The Express Checkout Element either doesn't render or throws a silent error.
+
+Additionally, local development on `http://localhost:3000` means Apple Pay simply cannot be tested locally without HTTPS tunneling.
+
+**Consequences:**
+- Apple Pay silently fails on production if any mixed content exists
+- Local development with Apple Pay requires extra tooling setup
+
+**Prevention:**
+1. **Audit all resource URLs** for `http://` references. Use CSP header `upgrade-insecure-requests` as a safety net
+2. **For local Apple Pay testing,** use `ngrok` or `lcl.host` to get an HTTPS tunnel:
+   ```bash
+   ngrok http 3000
+   # Register the ngrok domain in Stripe Dashboard for Apple Pay
+   ```
+3. **Google Pay is more forgiving** -- it works on `localhost` in Chrome with test cards, so use it for primary development testing
+4. **Netlify forces HTTPS by default** (good), but verify that any custom domain DNS has proper HTTPS redirect rules
+
+**Detection:**
+- Browser console shows mixed content warnings
+- Apple Pay button missing only on specific pages (the ones with mixed content)
+
+**Phase to address:** Development environment setup -- configure HTTPS tunneling before starting Apple Pay integration
 
 ---
 
-## UX Pitfalls
+### Pitfall 10: No Fallback for Users Without Mobile Wallets
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Showing raw LMSR math ("cost: 47.23 tokens based on log-sum-exp") | Users confused, distrust the system | Show "Bet 50 tokens → win up to 120 tokens if YES" — outcome-framed, not formula-framed |
-| "Yes/No" binary with no probability display | Users don't know if 50 tokens wins them 51 or 500 | Always show implied probability (e.g., "YES: 67% — currently favored") alongside bet controls |
-| Resolution with no explanation | Users furious, feel cheated | Admin resolution UI requires a "resolution note" field; this note is displayed on the resolved market |
-| Bet confirmation with no undo path | Accidental bets on mobile frustrate users | "Confirm bet" modal on mobile; 10-second cancel window before bet is finalized |
-| No way to see your P&L across all markets | Users can't tell if they're good or lucky | "My Performance" tab: total wagered, total returned, net profit/loss, win rate by category |
+**What goes wrong:**
+You build the payment page with only the Express Checkout Element (Apple Pay / Google Pay). A user on an Android phone without Google Pay set up, or on a desktop without any wallet, sees an empty payment page with no way to buy tokens. They can't purchase anything.
+
+**Why it happens:**
+The project spec says "Apple Pay / Google Pay via Stripe" which developers interpret as "only these two methods." But not all users will have wallets configured, especially in a friend group with mixed device/wallet adoption.
+
+**Consequences:**
+- Subset of users completely unable to purchase tokens
+- Frustration and support requests: "How do I buy tokens?"
+- Lost revenue from users who would have paid via card entry
+
+**Prevention:**
+1. **Use the Express Checkout Element for wallet payments AND the Payment Element as a fallback** for manual card entry:
+   ```tsx
+   <ExpressCheckoutElement onConfirm={handlePayment} />
+   {!walletAvailable && <PaymentElement />}
+   ```
+2. **Or use Stripe Checkout (hosted)** which automatically shows all available payment methods including card entry -- simplest approach but redirects away from your app
+3. **At minimum, provide a standard card form** via the Payment Element below the wallet buttons
+
+**Detection:**
+- Users reporting they can't find a way to pay
+- Analytics showing the payment page has high bounce rate
+
+**Phase to address:** Payment UI implementation -- design the payment page with fallback from the start
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 11: Stripe Publishable Key Exposed in Client Bundle (Expected but Misunderstood)
+
+**What goes wrong:**
+Nothing, actually. But developers panic when they see `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in the client bundle and think they have a security vulnerability. They try to hide it server-side, breaking the Stripe Elements integration.
+
+**Prevention:**
+- The publishable key is **designed to be public**. It can only create tokens and confirm payments -- it cannot charge cards, issue refunds, or access account data.
+- **The secret key (`STRIPE_SECRET_KEY`) must NEVER be in client code or `NEXT_PUBLIC_` variables.**
+- Name it clearly: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (publishable) vs `STRIPE_SECRET_KEY` (server-only).
+
+**Phase to address:** Initial Stripe setup -- document this in the project README so no one "fixes" it later
+
+---
+
+### Pitfall 12: Not Handling `payment_intent.payment_failed` Events
+
+**What goes wrong:**
+You handle `payment_intent.succeeded` to credit tokens. A user's card is declined. Stripe fires `payment_intent.payment_failed`. Your webhook ignores it. The user sees an error in the Apple Pay sheet but your app shows "Processing..." forever (from the polling/spinner in Pitfall 3's prevention).
+
+**Prevention:**
+- Handle `payment_intent.payment_failed` in your webhook to update the purchase status to `failed`
+- Client-side polling should detect the `failed` status and show a clear error: "Payment declined. Please try again or use a different card."
+- Log failed payments for monitoring (high failure rates may indicate card testing fraud)
+
+**Phase to address:** Webhook handler implementation -- handle both success and failure events
+
+---
+
+### Pitfall 13: Not Storing Purchase Records for Receipt/History Display
+
+**What goes wrong:**
+You credit tokens via `token_ledger` with reason `token_purchase` and `reference_id` pointing to the Stripe payment intent. But the `token_ledger` doesn't store the dollar amount, pack tier, or any receipt-friendly information. Users go to "Purchase History" and see: "+500 tokens, token_purchase" with no indication of how much they paid.
+
+**Prevention:**
+- Create a `purchases` table that stores: `user_id`, `stripe_payment_intent_id`, `amount_cents`, `token_amount`, `pack_tier`, `status`, `created_at`
+- The `token_ledger` entry's `reference_id` points to the `purchases` row ID
+- This table also enables the fulfillment status polling from Pitfall 3
+
+**Phase to address:** Database schema -- design the `purchases` table alongside the `stripe_events` table
+
+---
+
+## Regulatory / Legal Pitfalls
+
+### Pitfall 14: Virtual Currency + Real Money = Potential Money Transmitter Classification
+
+**What goes wrong:**
+Users buy tokens with real USD. Tokens are used to bet on prediction markets. Top performers win real USD prizes. A regulator looks at this and sees: USD in -> virtual currency -> USD out. This pattern can trigger money transmitter classification under FinCEN guidelines, requiring registration, BSA/AML programs, and state-level licensing.
+
+**Why it happens:**
+The project is explicitly designed as "deposit only, no withdrawals" to avoid this. But the prize system creates an indirect USD-out path. The key regulatory question is whether the virtual currency is "convertible" -- if users can extract USD value from it (even indirectly via prizes).
+
+**Consequences:**
+- If classified as a money transmitter: federal registration with FinCEN, BSA/AML program, state licensing (47+ states), annual audits
+- Non-compliance penalties are severe (fines, criminal liability)
+
+**Prevention:**
+1. **Terms of Service must explicitly state:**
+   - Tokens are a "limited, non-transferable, non-exclusive license" with no cash value
+   - Tokens cannot be sold, exchanged, transferred between users, or redeemed for cash
+   - Prizes are awarded based on leaderboard performance, not token redemption
+2. **Prize structure should be framed as contest winnings**, not token cashout. The prize is for "best predictor" performance, not for holding the most tokens.
+3. **No token-to-token transfers between users.** This is a bright line -- if users can send tokens to each other, the token becomes more currency-like.
+4. **Consult a lawyer** before going live with real money. This pitfall research is not legal advice.
+
+**Detection:**
+- N/A -- this is a design-time decision, not a runtime error
+
+**Phase to address:** Before accepting the first dollar -- terms of service and prize structure must be finalized
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Database migration | CHECK constraint rejects `token_purchase` (Pitfall 7) | Deploy migration before any payment code |
+| Stripe account setup | Domain verification missing (Pitfall 5), wrong webhook secret (Pitfall 6) | Register domains and create webhook endpoints in both test and live mode upfront |
+| Webhook endpoint | Signature verification fails (Pitfall 2), timeout on Netlify (Pitfall 4) | Use `request.text()` for raw body; keep handler minimal |
+| Idempotency layer | Double-crediting tokens (Pitfall 1) | `stripe_events` table with UNIQUE on `event_id`; atomic RPC |
+| Payment UI | Invisible buttons (Pitfall 8), no fallback (Pitfall 10) | Set up test wallets; include Payment Element fallback |
+| Fulfillment flow | Tokens never arrive despite payment (Pitfall 3) | Fulfill only via webhook; leverage existing Realtime subscription for balance updates |
+| Going live | Test vs live key mismatch (Pitfall 6) | Separate env vars per mode; smoke test after deploy |
+| Legal/regulatory | Money transmitter risk (Pitfall 14) | Terms of service, prize framing, legal review |
+
+---
+
+## Integration Gotchas Specific to This Stack
+
+| Integration Point | Common Mistake | Correct Approach |
+|-------------------|----------------|------------------|
+| Next.js App Router + Stripe webhook | Using `request.json()` instead of `request.text()` | Always use `request.text()` for raw body in webhook route handler |
+| Netlify + Stripe webhook | Function timeout kills webhook processing | Keep handler under 5 seconds; use Supabase RPC for atomic operations |
+| Supabase + Stripe | No idempotency layer between webhook and ledger | `stripe_events` table with UNIQUE constraint on Stripe event ID |
+| token_ledger + payments | Existing CHECK constraint on `reason` column | Add `token_purchase` to allowed values via migration before deploying payment code |
+| Express Checkout Element | Not registering domain for Apple Pay | Register `frontrun.bet` AND `www.frontrun.bet` in Stripe Dashboard |
+| Express Checkout Element | No fallback for users without wallets | Pair with Payment Element or standard card form |
+| Middleware + Apple Pay | Auth middleware blocks `/.well-known/` verification file | Exclude `/.well-known` from middleware matcher pattern |
+| Supabase Realtime + purchases | Building separate polling when Realtime already watches `token_ledger` | Reuse existing `useUserBalance` hook -- it auto-updates on any `token_ledger` INSERT |
+| Stripe test mode | Using real cards in test mode (rejected) or test cards in live mode (rejected) | Use `4242 4242 4242 4242` in test; real cards in live only |
+| Local development | Trying to test Apple Pay on localhost | Use `ngrok` for HTTPS tunnel; test Google Pay on localhost instead |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Bet deduction:** Token deduction happens in the same DB transaction as share quantity update — verify with a failing concurrent test
-- [ ] **Market resolution payout:** All winning bettors receive tokens proportional to their share quantity, not their original bet amount — check with an unequal bet test
-- [ ] **AMM odds at initialization:** Market starts at exactly 50/50 (or specified prior) — verify LMSR cost at q=0 for all outcomes
-- [ ] **Leaderboard prize eligibility:** Account age and minimum bet count enforced server-side — not just displayed in UI
-- [ ] **Phone uniqueness:** Unique constraint exists at DB level on phone number — not just application-level validation
-- [ ] **Admin resolution audit log:** Every resolution records who resolved it, when, and the source they cited
-- [ ] **Closed market state:** Markets past their resolution date accept no new bets — enforce in bet placement handler, not just UI
-- [ ] **Zero-balance recovery:** Users with 0 tokens still see the market feed and get the weekly top-up — not locked out of the app
+- [ ] **Idempotency:** Same Stripe event processed twice results in exactly one `token_ledger` entry -- verify with a test that sends duplicate events
+- [ ] **Webhook signature:** Handler uses `request.text()` not `request.json()` -- verify with `stripe listen --forward-to`
+- [ ] **Domain verification:** Apple Pay button appears on a real iPhone in Safari on `frontrun.bet` -- not just Chrome on desktop
+- [ ] **Fulfillment path:** Tokens are credited ONLY from webhook, never from client-side callback -- verify by disabling webhook and confirming zero credit
+- [ ] **Fallback payment:** Users without Apple Pay or Google Pay can still purchase via card entry
+- [ ] **CHECK constraint:** `token_purchase` reason accepted by `token_ledger` in production database
+- [ ] **Webhook secret:** Production environment uses the LIVE mode webhook secret, not test mode
+- [ ] **Timeout safety:** Webhook handler completes in < 5 seconds on Netlify -- load test the endpoint
+- [ ] **Purchase records:** User can see purchase history with dollar amounts, not just ledger entries
+- [ ] **Error handling:** `payment_intent.payment_failed` events are handled and surface user-visible errors
+- [ ] **Mixed content:** No HTTP resources on the payment page (blocks Apple Pay in Safari)
+- [ ] **Terms of service:** Updated to cover token purchases, no-refund policy, and non-convertibility of tokens
 
 ---
 
@@ -264,45 +476,37 @@ At launch, nobody has created markets yet — new users see an empty feed and le
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Balance corruption from race conditions | HIGH | Audit all bet records, recompute expected balances from bet history, correct deltas manually, add transaction locks retroactively |
-| Wrong LMSR b parameter (markets won't move) | MEDIUM | Update b constant, reset all active market share quantities to initial state (users lose in-flight positions), announce reset with explanation |
-| Multi-account gaming discovered after leaderboard period | MEDIUM | Invalidate the prize winner selection, retroactively flag suspicious accounts, rerun leaderboard excluding flagged users |
-| Ambiguous market resolved wrongly | LOW-MEDIUM | Admin overrides resolution, issues corrected payouts, writes a public resolution note explaining the correction |
-| Token inflation — one user holds 80% of all tokens | MEDIUM | Announce a seasonal reset with a fixed starting balance for all users for the next period |
-
----
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Wrong LMSR b parameter | AMM implementation | Simulate 100 trades at expected token supply; verify odds move 2-5% per 100-token bet |
-| LMSR floating-point drift | AMM implementation | Run 1000-trade integrity test; assert shares sum to collateral within 0.001% |
-| Race conditions on bets | AMM implementation | Concurrent test: 50 simultaneous bets, verify zero balance goes negative |
-| Ambiguous resolution criteria | Market creation + admin resolution | Creation form validation rejects markets without resolution criteria field |
-| Leaderboard multi-account gaming | Auth + leaderboard | Unique DB constraint on phone; VoIP rejection confirmed via Twilio test number |
-| Token inflation / rich-get-richer | Token economy + leaderboard design | Leaderboard resets at defined period; top-up mechanism implemented and tested |
-| No bet feedback loop | Bet + notification phase | User receives SMS/push on market resolve; "My Bets" shows pending positions |
-| Empty market feed at launch | Pre-launch setup | 5+ admin markets seeded before first user invite |
+| Double-credited tokens (Pitfall 1) | MEDIUM | Query `token_ledger` for duplicate `reference_id` values with reason `token_purchase`; insert negative `adjustment` entries to correct; add `stripe_events` dedup table retroactively |
+| Webhook silently failing (Pitfall 2, 4, 6) | HIGH | Cross-reference Stripe Dashboard payments with `token_ledger` entries; manually credit missing tokens via admin `adjustment`; fix the webhook and reprocess failed events via Stripe's event replay |
+| Users charged but no tokens (Pitfall 3) | HIGH (trust damage) | Immediate communication to affected users; manual token credit; consider bonus tokens as goodwill; issue Stripe refunds if tokens can't be credited |
+| Apple Pay not working (Pitfall 5) | LOW | Register domains, wait for propagation (up to 24 hours), redeploy |
+| CHECK constraint blocking credits (Pitfall 7) | LOW | Apply migration immediately; reprocess failed webhook events from Stripe |
 
 ---
 
 ## Sources
 
-- [pm-AMM: A Uniform AMM for Prediction Markets — Paradigm](https://www.paradigm.xyz/2024/11/pm-amm) — CPMM vs LMSR tradeoffs, LP loss mechanics
-- [LMSR Logarithmic Market Scoring Rule — Gensyn](https://blog.gensyn.ai/lmsr-logarithmic-market-scoring-rule/) — b parameter mechanics
-- [LMSR Primer — Gnosis](https://gnosis-pm-js.readthedocs.io/en/v1.3.0/lmsr-primer.html) — initialization and b relationship to funding
-- [How Does LMSR Work — Cultivate Labs](https://www.cultivatelabs.com/crowdsourced-forecasting-guide/how-does-logarithmic-market-scoring-rule-lmsr-work) — b parameter tuning pitfalls
-- [Manifold Markets Isn't Very Good — EA Forum](https://forum.effectivealtruism.org/posts/EaR9xFxspmYRkm3eo/manifold-markets-isn-t-very-good) — incentive misalignment, puppet accounts, yes bias
-- [What Is a Prediction Market Dispute — UMA](https://blog.uma.xyz/articles/what-is-a-prediction-market-dispute) — resolution dispute mechanics
-- [How Prediction Markets Really Settle — OMS](https://www.omsltd.net/how-prediction-markets-really-settle-a-trader-s-guide-to-event-resolution-and-outcomes/) — resolution criteria specificity best practices
-- [Preventing Fraud in Verify — Twilio](https://www.twilio.com/docs/verify/preventing-toll-fraud) — VoIP blocking, rate limiting
-- [SMS Pumping Fraud — Twilio](https://www.twilio.com/docs/glossary/what-is-sms-pumping-fraud) — phone auth fraud patterns
-- [Prediction Markets Grew 4X, Risk Structural Strain — Decrypt](https://decrypt.co/357583/prediction-markets-grew-4x-to-63-5b-in-2025-but-risk-structural-strain-certik) — wash trading volume statistics
-- [Everyone's Cheating on Prediction Markets — InGame](https://www.ingame.com/everyone-cheating-prediction-markets/) — incentive-driven cheating patterns
-- [Building a Polymarket-Style Prediction Engine — RisingWave](https://risingwave.com/blog/real-time-prediction-market-risingwave/) — database architecture and settlement fan-out problem
+- [Stripe Webhook Best Practices -- Stigg](https://www.stigg.io/blog-posts/best-practices-i-wish-we-knew-when-integrating-stripe-webhooks) -- Webhook retry behavior, idempotency patterns, event ordering
+- [Stripe Idempotent Requests API Reference](https://docs.stripe.com/api/idempotent_requests) -- Official idempotency key documentation
+- [Stripe Apple Pay Web Documentation](https://docs.stripe.com/apple-pay?platform=web) -- Domain verification requirements, test vs live mode
+- [Stripe Express Checkout Element](https://docs.stripe.com/elements/express-checkout-element) -- Supported wallets, migration from Payment Request Button
+- [Stripe Test Wallets Documentation](https://docs.stripe.com/testing/wallets) -- How to test Apple Pay and Google Pay, device requirements
+- [Stripe Webhook Signature Verification](https://docs.stripe.com/webhooks/signature) -- Raw body requirement, common errors
+- [Stripe Payment Intents API](https://docs.stripe.com/payments/payment-intents) -- Lifecycle, status transitions, reuse patterns
+- [Next.js App Router Stripe Webhook Issue #60002](https://github.com/vercel/next.js/issues/60002) -- `request.text()` vs `request.json()` for raw body
+- [Netlify Functions Timeout Documentation](https://answers.netlify.com/t/support-guide-why-is-my-function-taking-long-or-timing-out/71689) -- 10-second limit, background functions
+- [Netlify Stripe Webhook Inconsistency Thread](https://answers.netlify.com/t/netlify-functions-not-executing-stripe-webhook-events-consistently/48846) -- Functions not executing reliably
+- [Supabase Stripe Webhook Handling](https://supabase.com/docs/guides/functions/examples/stripe-webhooks) -- Edge Function webhook pattern
+- [Stripe Checkout vs Payment Intents Comparison](https://docs.stripe.com/payments/checkout-sessions-and-payment-intents-comparison) -- When to use which API
+- [Stripe Payment Events Webhook Documentation](https://docs.stripe.com/webhooks/handling-payment-events) -- Which events to handle for fulfillment
+- [Hookdeck Webhook Idempotency Guide](https://hookdeck.com/webhooks/guides/implement-webhook-idempotency) -- Database upsert pattern for deduplication
+- [Handling Duplicate Stripe Events -- Duncan Mackenzie](https://www.duncanmackenzie.net/blog/handling-duplicate-stripe-events/) -- Practical deduplication implementation
+- [Venable -- Regulatory Risks of Virtual Currency](https://www.venable.com/insights/publications/2017/05/regulatory-risks-of-ingame-and-inapp-virtual-curre) -- Money transmitter classification for virtual currencies
+- [FinCEN Virtual Currency Guidance](https://www.fincen.gov/resources/statutes-regulations/guidance/application-fincens-regulations-persons-administering) -- Convertible virtual currency definitions
+- [lcl.host Apple Pay Testing Guide](https://anchor.dev/blog/stripe-nextjs-lclhost) -- Local HTTPS for Apple Pay development
+- [Webhook Security Fundamentals -- Hooklistener](https://www.hooklistener.com/learn/webhook-security-fundamentals) -- CSRF exemption, rate limiting, IP validation
 
 ---
 
-*Pitfalls research for: community prediction market (virtual tokens, AMM, leaderboard prizes)*
-*Researched: 2026-02-19*
+*Pitfalls research for: Adding USD token purchases (Stripe + Apple Pay / Google Pay) to Frontrun prediction market*
+*Researched: 2026-02-21*
