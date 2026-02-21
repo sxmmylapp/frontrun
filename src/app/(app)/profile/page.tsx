@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
+import { TIERS, type TierKey } from '@/lib/stripe/tiers';
+import Link from 'next/link';
 
 type Position = {
   id: string;
@@ -20,9 +22,20 @@ type Position = {
   } | null;
 };
 
+type Purchase = {
+  id: string;
+  tier: string;
+  amount_cents: number;
+  tokens_credited: number;
+  status: string;
+  created_at: string | null;
+  completed_at: string | null;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const [positions, setPositions] = useState<Position[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -66,6 +79,18 @@ export default function ProfilePage() {
           })) as Position[]
         );
       }
+
+      // Get purchase history
+      const { data: purchaseData } = await supabase
+        .from('token_purchases')
+        .select('id, tier, amount_cents, tokens_credited, status, created_at, completed_at')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false });
+
+      if (purchaseData) {
+        setPurchases(purchaseData);
+      }
+
       setLoading(false);
     }
     load();
@@ -85,6 +110,11 @@ export default function ProfilePage() {
     return { value: 0, label: 'Open' };
   }
 
+  function getTierLabel(tier: string): string {
+    const t = TIERS[tier as TierKey];
+    return t ? t.label : tier;
+  }
+
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -96,7 +126,7 @@ export default function ProfilePage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">{displayName || 'Profile'}</h2>
-          <p className="text-xs text-muted-foreground">Your bet history</p>
+          <p className="text-xs text-muted-foreground">Your activity</p>
         </div>
         <Button
           variant="secondary"
@@ -108,12 +138,84 @@ export default function ProfilePage() {
         </Button>
       </div>
 
+      {/* Purchase History */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Purchase History
+          </h3>
+          <Link
+            href="/buy"
+            className="text-xs text-green-400 hover:text-green-300"
+          >
+            Buy tokens
+          </Link>
+        </div>
+
+        {loading ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading...</p>
+        ) : purchases.length === 0 ? (
+          <div className="rounded-sm border border-border bg-card p-4 text-center">
+            <p className="text-sm text-muted-foreground">No purchases yet.</p>
+            <Link
+              href="/buy"
+              className="mt-2 inline-block text-sm text-green-400 hover:text-green-300"
+            >
+              Buy your first token pack
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {purchases.map((purchase) => (
+              <div
+                key={purchase.id}
+                className="rounded-sm border border-border bg-card p-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {getTierLabel(purchase.tier)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {purchase.completed_at
+                        ? new Date(purchase.completed_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : purchase.created_at
+                          ? new Date(purchase.created_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-green-400">
+                      +{purchase.tokens_credited.toLocaleString()} tokens
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      ${(purchase.amount_cents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Bet history */}
       <div className="mt-6">
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+          Bet History
+        </h3>
         {loading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Loading...</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading...</p>
         ) : positions.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-4 text-center text-sm text-muted-foreground">
             No bets yet. Go place your first bet!
           </p>
         ) : (
