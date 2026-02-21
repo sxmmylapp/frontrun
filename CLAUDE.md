@@ -24,14 +24,20 @@ npx vitest run src/lib/amm/cpmm.test.ts  # Run single test file
 - **Zod 4** for validation, **React Hook Form** for forms, **Zustand** for client state
 - **decimal.js** for CPMM math (20-digit precision, no floating-point drift)
 - **Netlify** deployment with `@netlify/plugin-nextjs`
+- Path alias: `@/*` maps to `./src/*`
 
 ## Architecture
 
-### Route Groups
+### Route Groups & Middleware
 
 - `src/app/(auth)/` — Login/verify pages (unauthenticated only)
-- `src/app/(app)/` — All protected pages: feed, markets/[id], leaderboard, profile, admin/prizes
-- `src/middleware.ts` — Auth routing: unauthed users → `/login`, authed users on auth pages → `/feed`
+- `src/app/(app)/` — All protected pages: feed, markets/[id], leaderboard, profile, admin/prizes, buy
+- `src/middleware.ts` — Auth routing: unauthed users → `/login`, authed users on auth pages → `/feed`, root `/` redirects based on auth state. Refreshes Supabase session before route checks.
+
+### API Routes
+
+- `POST /api/payments/create-intent` — Creates Stripe PaymentIntent server-side. Validates tier key against server-authoritative `TIERS` constant (client never sends dollar amounts), inserts pending purchase record, returns `clientSecret`.
+- `POST /api/webhooks/stripe` — Processes `payment_intent.succeeded` and `payment_intent.payment_failed`. Uses `request.text()` (not `.json()`) for signature verification. Deduplicates via `stripe_events` table (unique constraint on `event_id`). Credits tokens via `credit_token_purchase` RPC.
 
 ### Server Actions Pattern
 
@@ -39,6 +45,10 @@ All mutations use Next.js server actions in `src/lib/*/actions.ts` with a consis
 - Zod schema validation on inputs
 - Return type: `{ success: true; data: T } | { success: false; error: string }`
 - Structured logging: `[ISO timestamp] LEVEL: message`
+
+### Stripe Payment Flow
+
+Server-authoritative tiers in `src/lib/stripe/tiers.ts` (small=$5/500T, medium=$10/1100T, large=$20/2400T). Flow: user selects tier on `/buy` → `CheckoutForm` calls `/api/payments/create-intent` with tier key → server creates PaymentIntent with `user_id`/`tier`/`tokens` in metadata → client confirms with `stripe.confirmPayment()` → Stripe webhook fires → `credit_token_purchase` RPC atomically credits tokens. PaymentIntent metadata is the secure channel — populated server-side, never client-controlled.
 
 ### Token Economy (Append-Only Ledger)
 
@@ -50,7 +60,11 @@ Core math in `src/lib/amm/cpmm.ts` — pure functions, no side effects. Formula:
 
 ### Atomic Database Operations
 
-Betting, resolution, and cancellation use **Supabase RPC stored procedures** (`place_bet`, `resolve_market`, `cancel_market`) to atomically update multiple tables (market_pools, positions, token_ledger) in a single transaction.
+Betting, resolution, cancellation, and token purchases use **Supabase RPC stored procedures** to atomically update multiple tables in a single transaction. All RPCs use `SECURITY DEFINER` and row-level locks (`FOR UPDATE`) to prevent race conditions:
+- `place_bet` — Locks market, calculates CPMM shares, updates pools, inserts position, debits ledger
+- `resolve_market` — Validates admin + market status, calculates payouts per share, credits winners
+- `cancel_market` — Refunds all bettors, sets status to 'cancelled'
+- `credit_token_purchase` — Idempotent (returns `already_processed` if double-called), credits ledger, marks purchase complete
 
 ### Supabase Clients
 
@@ -61,7 +75,12 @@ Three client variants in `src/lib/supabase/`:
 
 ### Real-Time Updates
 
-`src/hooks/useUserBalance.ts` subscribes to Postgres INSERT events on `token_ledger` via Supabase Realtime, re-fetching the derived balance on each change.
+- `src/hooks/useUserBalance.ts` — Subscribes to `token_ledger` INSERT events, re-fetches derived balance
+- `MarketDetail` — Subscribes to `market_pools` UPDATE events for live odds updates
+
+### Component Architecture
+
+Server Components fetch data and pass props to Client Components. Example: `MarketPage` (server) fetches market data → passes to `MarketDetail` (client) which handles interactivity and Realtime subscriptions. Only add `'use client'` when the component needs hooks, event handlers, or browser APIs.
 
 ## Environment Variables
 

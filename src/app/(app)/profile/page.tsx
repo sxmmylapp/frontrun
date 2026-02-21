@@ -289,6 +289,12 @@ export default function ProfilePage() {
           >
             Manage Prize Periods &rarr;
           </a>
+          <a
+            href="/admin/balances"
+            className="mt-1 block text-sm text-muted-foreground hover:text-foreground"
+          >
+            Adjust Balances &rarr;
+          </a>
         </div>
       )}
 
