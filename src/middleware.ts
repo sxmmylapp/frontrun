@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Routes that require authentication
-const protectedPrefixes = ['/feed', '/leaderboard', '/profile', '/admin', '/markets'];
+const protectedPrefixes = ['/feed', '/leaderboard', '/profile', '/admin', '/markets', '/buy'];
 // Routes only for unauthenticated users
 const authRoutes = ['/login', '/verify'];
 
@@ -80,6 +80,6 @@ export const config = {
      * - favicon.ico (favicon)
      * - public folder assets
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
