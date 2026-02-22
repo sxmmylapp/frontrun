@@ -154,16 +154,32 @@ export async function placeBet(input: {
       return { success: false, error: 'Cannot bet on a market you created' };
     }
 
-    // Max bet check (10% of pool)
+    // Max bet check (25% of pool) and per-user-per-market total limit (25% of pool)
     const pool = Array.isArray(marketData.market_pools)
       ? marketData.market_pools[0]
       : marketData.market_pools;
     if (pool) {
       const totalPool = Number(pool.yes_pool) + Number(pool.no_pool);
-      const maxBet = totalPool * 0.10;
+      const maxBet = totalPool * 0.25;
       if (input.amount > maxBet) {
         console.warn(`[${ts}] placeBet WARN: user ${user.id} bet ${input.amount} exceeds max ${maxBet.toFixed(2)} in market ${input.marketId}`);
-        return { success: false, error: `Bet too large — max is 10% of pool (${maxBet.toFixed(2)} tokens)` };
+        return { success: false, error: `Bet too large — max is 25% of pool (${maxBet.toFixed(2)} tokens)` };
+      }
+
+      // Check total user investment on this market
+      const { data: positions } = await admin
+        .from('positions')
+        .select('cost')
+        .eq('user_id', user.id)
+        .eq('market_id', input.marketId)
+        .is('cancelled_at', null);
+
+      const userTotalCost = (positions ?? []).reduce((sum, p) => sum + Number(p.cost), 0);
+      const maxUserTotal = totalPool * 0.25;
+      if (userTotalCost + input.amount > maxUserTotal) {
+        const remaining = Math.max(0, maxUserTotal - userTotalCost);
+        console.warn(`[${ts}] placeBet WARN: user ${user.id} total ${userTotalCost + input.amount} exceeds per-market limit ${maxUserTotal.toFixed(2)}`);
+        return { success: false, error: `Would exceed per-market limit — you can invest up to ${maxUserTotal.toFixed(2)} tokens total (${remaining.toFixed(2)} remaining)` };
       }
     }
 
