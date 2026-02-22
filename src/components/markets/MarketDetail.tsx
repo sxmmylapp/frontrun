@@ -5,6 +5,15 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { BetSlip } from './BetSlip';
 import { AdminResolutionPanel } from './AdminResolutionPanel';
+import { CancelBetButton } from './CancelBetButton';
+
+type UserPosition = {
+  id: string;
+  outcome: string;
+  shares: number;
+  cost: number;
+  cancelled_at: string | null;
+};
 
 type MarketProps = {
   market: {
@@ -24,6 +33,7 @@ type MarketProps = {
   };
   isAdmin?: boolean;
   currentUserId: string | null;
+  userPositions?: UserPosition[];
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -32,7 +42,7 @@ function calcProb(yesPool: number, noPool: number): number {
   return (noPool / total) * 100;
 }
 
-export function MarketDetail({ market, initialPool, isAdmin, currentUserId }: MarketProps) {
+export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [] }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
   const yesProb = calcProb(pool.yesPool, pool.noPool);
   const noProb = 100 - yesProb;
@@ -144,6 +154,45 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId }: Ma
       {isOpen && currentUserId && currentUserId === market.creatorId && (
         <div className="mt-4 rounded-sm border border-yellow-800/40 bg-yellow-950/20 px-4 py-3 text-sm text-yellow-400">
           You created this market — you cannot place bets on it.
+        </div>
+      )}
+
+      {/* Your Positions */}
+      {userPositions.length > 0 && (
+        <div className="mt-4 rounded-sm border border-border bg-card p-4">
+          <h3 className="text-xs font-medium text-muted-foreground">Your Positions</h3>
+          <div className="mt-2 space-y-3">
+            {userPositions.map((pos) => (
+              <div key={pos.id} className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-sm px-1.5 py-0.5 text-xs font-medium ${
+                        pos.outcome === 'yes'
+                          ? 'bg-green-950/30 text-green-400'
+                          : 'bg-red-950/30 text-red-400'
+                      }`}
+                    >
+                      {pos.outcome.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {pos.shares.toFixed(1)} shares @ {pos.cost.toFixed(0)} tokens
+                    </span>
+                  </div>
+                  {isOpen && (
+                    <CancelBetButton
+                      positionId={pos.id}
+                      outcome={pos.outcome as 'yes' | 'no'}
+                      shares={pos.shares}
+                      cost={pos.cost}
+                      yesPool={pool.yesPool}
+                      noPool={pool.noPool}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
