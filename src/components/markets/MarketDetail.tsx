@@ -149,6 +149,7 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
           marketId={market.id}
           yesPool={pool.yesPool}
           noPool={pool.noPool}
+          userPositionCost={userPositions.reduce((sum, p) => sum + p.cost, 0)}
         />
       )}
       {isOpen && currentUserId && currentUserId === market.creatorId && (
