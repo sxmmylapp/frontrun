@@ -52,6 +52,20 @@ export async function createMarket(input: {
       return { success: false, error: 'Not authenticated' };
     }
 
+    // Check for duplicate open market with same question
+    const admin = createAdminClient();
+    const normalized = question.trim().toLowerCase();
+    const { data: existing } = await admin
+      .from('markets')
+      .select('id')
+      .eq('status', 'open')
+      .ilike('question', normalized)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return { success: false, error: 'A market with this question already exists' };
+    }
+
     // Insert market
     const { data: market, error: marketError } = await supabase
       .from('markets')
@@ -70,7 +84,6 @@ export async function createMarket(input: {
     }
 
     // Seed CPMM pool with initial liquidity (equal YES/NO)
-    const admin = createAdminClient();
     const half = INITIAL_LIQUIDITY / 2;
     const { error: poolError } = await admin
       .from('market_pools')
