@@ -22,8 +22,7 @@ export default async function MarketPage({
       resolved_at,
       created_at,
       creator_id,
-      market_pools ( yes_pool, no_pool ),
-      profiles!markets_creator_id_fkey ( display_name )
+      market_pools ( yes_pool, no_pool )
     `)
     .eq('id', id)
     .single();
@@ -46,10 +45,6 @@ export default async function MarketPage({
     ? market.market_pools[0]
     : market.market_pools;
 
-  const creator = Array.isArray(market.profiles)
-    ? market.profiles[0]
-    : market.profiles;
-
   return (
     <MarketDetail
       market={{
@@ -61,7 +56,6 @@ export default async function MarketPage({
         closesAt: market.closes_at,
         resolvedAt: market.resolved_at,
         createdAt: market.created_at ?? new Date().toISOString(),
-        creatorName: creator?.display_name ?? 'Unknown',
         creatorId: market.creator_id,
       }}
       initialPool={{

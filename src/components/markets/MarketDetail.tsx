@@ -16,7 +16,6 @@ type MarketProps = {
     closesAt: string;
     resolvedAt: string | null;
     createdAt: string;
-    creatorName: string;
     creatorId: string;
   };
   initialPool: {
@@ -81,7 +80,7 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId }: Ma
       {/* Question */}
       <h1 className="mt-2 text-lg font-semibold leading-snug">{market.question}</h1>
       <p className="mt-1 text-xs text-muted-foreground">
-        by {market.creatorName} &middot; {format(new Date(market.createdAt), 'MMM d, yyyy')}
+        {format(new Date(market.createdAt), 'MMM d, yyyy')}
       </p>
 
       {/* Status */}
