@@ -16,6 +16,10 @@ const placeBetSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
 });
 
+const cancelBetSchema = z.object({
+  positionId: z.string().uuid(),
+});
+
 type ActionResult<T = undefined> =
   | { success: true; data: T }
   | { success: false; error: string };
@@ -192,6 +196,58 @@ export async function placeBet(input: {
     };
   } catch (err) {
     console.error(`[${ts}] placeBet ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
+/**
+ * Cancel a bet — sell shares back into the AMM pool at current market prices.
+ * Calls the atomic cancel_bet RPC.
+ */
+export async function cancelBet(input: {
+  positionId: string;
+}): Promise<ActionResult<{ tokensReturned: number; originalCost: number }>> {
+  const ts = new Date().toISOString();
+
+  const parsed = cancelBetSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('cancel_bet', {
+      p_user_id: user.id,
+      p_position_id: input.positionId,
+    });
+
+    if (error) {
+      console.error(`[${ts}] cancelBet ERROR: ${error.message}`);
+      return { success: false, error: 'Failed to cancel bet' };
+    }
+
+    const result = data as Record<string, unknown>;
+    if (result.error) {
+      console.warn(`[${ts}] cancelBet WARN: ${result.error}`);
+      return { success: false, error: result.error as string };
+    }
+
+    console.info(`[${ts}] cancelBet INFO: user ${user.id} cancelled position ${input.positionId}, returned ${result.tokens_returned} tokens`);
+    return {
+      success: true,
+      data: {
+        tokensReturned: result.tokens_returned as number,
+        originalCost: result.original_cost as number,
+      },
+    };
+  } catch (err) {
+    console.error(`[${ts}] cancelBet ERROR: unexpected -`, err);
     return { success: false, error: 'Something went wrong' };
   }
 }

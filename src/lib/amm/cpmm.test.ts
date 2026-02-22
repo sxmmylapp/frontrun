@@ -5,7 +5,10 @@ import {
   noProbability,
   buyYesShares,
   buyNoShares,
+  sellYesShares,
+  sellNoShares,
   previewTrade,
+  previewSell,
   createMarketPool,
   payoutPerShare,
 } from './cpmm';
@@ -164,6 +167,132 @@ describe('CPMM', () => {
     });
   });
 
+  describe('sellYesShares', () => {
+    it('produces correct output for a standard sell', () => {
+      // After buying YES, sell them back
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const sellResult = sellYesShares(afterBuy, buyResult.sharesReceived);
+
+      // Selling all shares back should return ~100 tokens (the original cost)
+      expect(sellResult.tokensReceived.toDecimalPlaces(8).toNumber()).toBeCloseTo(100, 6);
+    });
+
+    it('maintains constant product invariant', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const kBefore = afterBuy.yesPool.mul(afterBuy.noPool);
+      const sellResult = sellYesShares(afterBuy, d(20));
+      const kAfter = sellResult.newYesPool.mul(sellResult.newNoPool);
+      expect(kAfter.toDecimalPlaces(8).eq(kBefore.toDecimalPlaces(8))).toBe(true);
+    });
+
+    it('decreases YES probability after selling YES', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(200));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const probBefore = yesProbability(afterBuy);
+      const sellResult = sellYesShares(afterBuy, d(50));
+      expect(sellResult.newYesProbability.lt(probBefore)).toBe(true);
+    });
+
+    it('tokens received is always positive', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const sellResult = sellYesShares(afterBuy, d(10));
+      expect(sellResult.tokensReceived.gt(0)).toBe(true);
+    });
+
+    it('throws on zero shares', () => {
+      const pool = createMarketPool(d(1000));
+      expect(() => sellYesShares(pool, d(0))).toThrow('Shares must be positive');
+    });
+
+    it('throws on negative shares', () => {
+      const pool = createMarketPool(d(1000));
+      expect(() => sellYesShares(pool, d(-10))).toThrow('Shares must be positive');
+    });
+  });
+
+  describe('sellNoShares', () => {
+    it('produces correct output for a standard sell', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyNoShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const sellResult = sellNoShares(afterBuy, buyResult.sharesReceived);
+
+      // Selling all shares back should return ~100 tokens
+      expect(sellResult.tokensReceived.toDecimalPlaces(8).toNumber()).toBeCloseTo(100, 6);
+    });
+
+    it('maintains constant product invariant', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyNoShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const kBefore = afterBuy.yesPool.mul(afterBuy.noPool);
+      const sellResult = sellNoShares(afterBuy, d(20));
+      const kAfter = sellResult.newYesPool.mul(sellResult.newNoPool);
+      expect(kAfter.toDecimalPlaces(8).eq(kBefore.toDecimalPlaces(8))).toBe(true);
+    });
+
+    it('decreases NO probability after selling NO', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyNoShares(pool, d(200));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const probBefore = noProbability(afterBuy);
+      const sellResult = sellNoShares(afterBuy, d(50));
+      expect(sellResult.newNoProbability.lt(probBefore)).toBe(true);
+    });
+  });
+
+  describe('previewSell', () => {
+    it('returns same tokens as actual sell for YES', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const preview = previewSell(afterBuy, 'yes', d(30));
+      const actual = sellYesShares(afterBuy, d(30));
+      expect(preview.tokensReceived.eq(actual.tokensReceived)).toBe(true);
+    });
+
+    it('returns same tokens as actual sell for NO', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyNoShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const preview = previewSell(afterBuy, 'no', d(30));
+      const actual = sellNoShares(afterBuy, d(30));
+      expect(preview.tokensReceived.eq(actual.tokensReceived)).toBe(true);
+    });
+  });
+
+  describe('buy-sell roundtrip', () => {
+    it('buy then sell all returns original tokens', () => {
+      const pool = createMarketPool(d(1000));
+      const buyResult = buyYesShares(pool, d(100));
+      const afterBuy = { yesPool: buyResult.newYesPool, noPool: buyResult.newNoPool };
+      const sellResult = sellYesShares(afterBuy, buyResult.sharesReceived);
+      // Pool should be back to original
+      expect(sellResult.newYesPool.toDecimalPlaces(8).eq(d(500).toDecimalPlaces(8))).toBe(true);
+      expect(sellResult.newNoPool.toDecimalPlaces(8).eq(d(500).toDecimalPlaces(8))).toBe(true);
+    });
+
+    it('sell after price moves gives different amount than original cost', () => {
+      const pool = createMarketPool(d(1000));
+      // User A buys YES
+      const buyA = buyYesShares(pool, d(100));
+      const afterA = { yesPool: buyA.newYesPool, noPool: buyA.newNoPool };
+      // User B also buys YES, pushing price up
+      const buyB = buyYesShares(afterA, d(100));
+      const afterB = { yesPool: buyB.newYesPool, noPool: buyB.newNoPool };
+      // User A sells — should get more than 100 tokens because price moved up
+      const sellA = sellYesShares(afterB, buyA.sharesReceived);
+      expect(sellA.tokensReceived.gt(d(100))).toBe(true);
+    });
+  });
+
   describe('edge cases', () => {
     it('handles very small bet (dust)', () => {
       const pool = createMarketPool(d(1000));
@@ -267,6 +396,54 @@ describe('CPMM', () => {
         expect(result.sharesReceived.gt(0)).toBe(true);
 
         pool = { yesPool: result.newYesPool, noPool: result.newNoPool };
+      }
+    });
+  });
+
+  describe('1,000-trade simulation with sells — zero drift', () => {
+    it('maintains invariant k across buy and sell trades', () => {
+      let pool = createMarketPool(d(10000));
+      const k = pool.yesPool.mul(pool.noPool);
+      // Track outstanding shares for selling
+      let yesSharesOut = new Decimal(0);
+      let noSharesOut = new Decimal(0);
+
+      for (let i = 0; i < 1000; i++) {
+        const action = Math.random();
+
+        if (action < 0.4) {
+          // Buy YES
+          const amount = new Decimal(Math.floor(Math.random() * 100) + 1);
+          const result = buyYesShares(pool, amount);
+          yesSharesOut = yesSharesOut.add(result.sharesReceived);
+          pool = { yesPool: result.newYesPool, noPool: result.newNoPool };
+        } else if (action < 0.8) {
+          // Buy NO
+          const amount = new Decimal(Math.floor(Math.random() * 100) + 1);
+          const result = buyNoShares(pool, amount);
+          noSharesOut = noSharesOut.add(result.sharesReceived);
+          pool = { yesPool: result.newYesPool, noPool: result.newNoPool };
+        } else if (action < 0.9 && yesSharesOut.gt(1)) {
+          // Sell some YES shares
+          const maxSell = Decimal.min(yesSharesOut, new Decimal(50));
+          const sellAmt = maxSell.mul(Decimal.random()).add(1).floor().clamp(1, maxSell);
+          const result = sellYesShares(pool, sellAmt);
+          yesSharesOut = yesSharesOut.sub(sellAmt);
+          pool = { yesPool: result.newYesPool, noPool: result.newNoPool };
+        } else if (noSharesOut.gt(1)) {
+          // Sell some NO shares
+          const maxSell = Decimal.min(noSharesOut, new Decimal(50));
+          const sellAmt = maxSell.mul(Decimal.random()).add(1).floor().clamp(1, maxSell);
+          const result = sellNoShares(pool, sellAmt);
+          noSharesOut = noSharesOut.sub(sellAmt);
+          pool = { yesPool: result.newYesPool, noPool: result.newNoPool };
+        }
+
+        // k should be preserved
+        const currentK = pool.yesPool.mul(pool.noPool);
+        expect(
+          currentK.toDecimalPlaces(6).eq(k.toDecimalPlaces(6))
+        ).toBe(true);
       }
     });
   });

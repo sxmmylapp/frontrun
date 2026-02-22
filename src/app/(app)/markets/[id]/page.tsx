@@ -41,6 +41,27 @@ export default async function MarketPage({
     isAdmin = profile?.is_admin === true;
   }
 
+  // Fetch user's active positions on this market
+  let userPositions: {
+    id: string;
+    outcome: string;
+    shares: number;
+    cost: number;
+    cancelled_at: string | null;
+  }[] = [];
+  if (user) {
+    const { data: positions } = await supabase
+      .from('positions')
+      .select('id, outcome, shares, cost, cancelled_at')
+      .eq('user_id', user.id)
+      .eq('market_id', id)
+      .is('cancelled_at', null)
+      .order('created_at', { ascending: false });
+    if (positions) {
+      userPositions = positions;
+    }
+  }
+
   const pool = Array.isArray(market.market_pools)
     ? market.market_pools[0]
     : market.market_pools;
@@ -64,6 +85,7 @@ export default async function MarketPage({
       }}
       isAdmin={isAdmin}
       currentUserId={user?.id ?? null}
+      userPositions={userPositions}
     />
   );
 }

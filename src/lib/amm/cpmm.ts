@@ -24,6 +24,14 @@ export type TradeResult = {
   newNoProbability: Decimal;
 };
 
+export type SellResult = {
+  tokensReceived: Decimal;
+  newYesPool: Decimal;
+  newNoPool: Decimal;
+  newYesProbability: Decimal;
+  newNoProbability: Decimal;
+};
+
 /**
  * Get the current probability of YES outcome.
  * Formula: P(YES) = noPool / (yesPool + noPool)
@@ -161,11 +169,105 @@ export function payoutPerShare(
 }
 
 /**
+ * Sell YES shares back into the pool.
+ *
+ * Mechanism: shares return to the YES pool, then the constant product
+ * invariant determines how many tokens come out of the NO pool.
+ *
+ * k = yesPool * noPool (before trade)
+ * newYesPool = yesPool + shares
+ * newNoPool = k / newYesPool
+ * tokensReceived = noPool - newNoPool
+ */
+export function sellYesShares(
+  pool: PoolState,
+  shares: Decimal
+): SellResult {
+  validateSellInputs(pool, shares);
+
+  const k = pool.yesPool.mul(pool.noPool);
+  const newYesPool = pool.yesPool.add(shares);
+  const newNoPool = k.div(newYesPool);
+  const tokensReceived = pool.noPool.sub(newNoPool);
+
+  const newPool = { yesPool: newYesPool, noPool: newNoPool };
+
+  return {
+    tokensReceived,
+    newYesPool,
+    newNoPool,
+    newYesProbability: yesProbability(newPool),
+    newNoProbability: noProbability(newPool),
+  };
+}
+
+/**
+ * Sell NO shares back into the pool.
+ *
+ * Mechanism: shares return to the NO pool, then the constant product
+ * invariant determines how many tokens come out of the YES pool.
+ */
+export function sellNoShares(
+  pool: PoolState,
+  shares: Decimal
+): SellResult {
+  validateSellInputs(pool, shares);
+
+  const k = pool.yesPool.mul(pool.noPool);
+  const newNoPool = pool.noPool.add(shares);
+  const newYesPool = k.div(newNoPool);
+  const tokensReceived = pool.yesPool.sub(newYesPool);
+
+  const newPool = { yesPool: newYesPool, noPool: newNoPool };
+
+  return {
+    tokensReceived,
+    newYesPool,
+    newNoPool,
+    newYesProbability: yesProbability(newPool),
+    newNoProbability: noProbability(newPool),
+  };
+}
+
+/**
+ * Preview a sell operation without modifying state.
+ * Returns the tokens the user would receive for selling their shares.
+ */
+export function previewSell(
+  pool: PoolState,
+  outcome: 'yes' | 'no',
+  shares: Decimal
+): { tokensReceived: Decimal; newYesProbability: Decimal; newNoProbability: Decimal } {
+  const result =
+    outcome === 'yes'
+      ? sellYesShares(pool, shares)
+      : sellNoShares(pool, shares);
+
+  return {
+    tokensReceived: result.tokensReceived,
+    newYesProbability: result.newYesProbability,
+    newNoProbability: result.newNoProbability,
+  };
+}
+
+/**
  * Validate trade inputs. Throws on invalid state.
  */
 function validateTradeInputs(pool: PoolState, tokenAmount: Decimal): void {
   if (tokenAmount.lte(0)) {
     throw new Error('Token amount must be positive');
+  }
+  if (pool.yesPool.lte(0) || pool.noPool.lte(0)) {
+    throw new Error('Pool values must be positive');
+  }
+}
+
+/**
+ * Validate sell inputs. Throws on invalid state.
+ */
+function validateSellInputs(pool: PoolState, shares: Decimal): void {
+  if (shares.lte(0)) {
+    throw new Error('Shares must be positive');
   }
   if (pool.yesPool.lte(0) || pool.noPool.lte(0)) {
     throw new Error('Pool values must be positive');

@@ -137,6 +137,7 @@ export type Database = {
       }
       positions: {
         Row: {
+          cancelled_at: string | null
           cost: number
           created_at: string | null
           id: string
@@ -146,6 +147,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancelled_at?: string | null
           cost: number
           created_at?: string | null
           id?: string
@@ -155,6 +157,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancelled_at?: string | null
           cost?: number
           created_at?: string | null
           id?: string
@@ -364,6 +367,10 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_bet: {
+        Args: { p_position_id: string; p_user_id: string }
+        Returns: Json
+      }
       cancel_market: {
         Args: { p_admin_id: string; p_market_id: string }
         Returns: Json

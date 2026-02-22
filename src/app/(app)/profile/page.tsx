@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 import { TIERS, type TierKey } from '@/lib/stripe/tiers';
 import Link from 'next/link';
+import { CancelBetButton } from '@/components/markets/CancelBetButton';
 
 type Position = {
   id: string;
@@ -14,11 +15,16 @@ type Position = {
   shares: number;
   cost: number;
   created_at: string | null;
+  cancelled_at: string | null;
   market: {
     id: string;
     question: string;
     status: string;
     resolved_outcome: string | null;
+  } | null;
+  pool: {
+    yes_pool: number;
+    no_pool: number;
   } | null;
 };
 
@@ -57,7 +63,7 @@ export default function ProfilePage() {
         setIsAdmin(profile.is_admin === true);
       }
 
-      // Get positions with market info
+      // Get positions with market info and pool data
       const { data } = await supabase
         .from('positions')
         .select(`
@@ -66,17 +72,24 @@ export default function ProfilePage() {
           shares,
           cost,
           created_at,
-          markets ( id, question, status, resolved_outcome )
+          cancelled_at,
+          markets ( id, question, status, resolved_outcome, market_pools ( yes_pool, no_pool ) )
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (data) {
         setPositions(
-          data.map((p) => ({
-            ...p,
-            market: Array.isArray(p.markets) ? p.markets[0] : p.markets,
-          })) as Position[]
+          data.map((p) => {
+            const market = Array.isArray(p.markets) ? p.markets[0] : p.markets;
+            const poolData = market?.market_pools;
+            const pool = Array.isArray(poolData) ? poolData[0] : poolData;
+            return {
+              ...p,
+              market: market ? { id: market.id, question: market.question, status: market.status, resolved_outcome: market.resolved_outcome } : null,
+              pool: pool ? { yes_pool: Number(pool.yes_pool), no_pool: Number(pool.no_pool) } : null,
+            };
+          }) as Position[]
         );
       }
 
@@ -98,6 +111,9 @@ export default function ProfilePage() {
 
   function calcPnL(pos: Position): { value: number; label: string } {
     if (!pos.market) return { value: 0, label: '-' };
+    if (pos.cancelled_at) {
+      return { value: 0, label: 'Cancelled' };
+    }
     if (pos.market.status === 'resolved') {
       const won = pos.market.resolved_outcome === pos.outcome;
       const payout = won ? pos.shares : 0;
@@ -260,17 +276,29 @@ export default function ProfilePage() {
                   </div>
                   {pos.market && (
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {pos.market.status === 'resolved' && (
+                      {pos.cancelled_at ? (
+                        <span className="text-yellow-400">Cancelled</span>
+                      ) : pos.market.status === 'resolved' ? (
                         <span>
                           Resolved: {pos.market.resolved_outcome?.toUpperCase()}
                         </span>
-                      )}
-                      {pos.market.status === 'cancelled' && (
-                        <span>Cancelled</span>
-                      )}
-                      {(pos.market.status === 'open' || pos.market.status === 'closed') && (
+                      ) : pos.market.status === 'cancelled' ? (
+                        <span>Market cancelled</span>
+                      ) : (
                         <span>Pending</span>
                       )}
+                    </div>
+                  )}
+                  {!pos.cancelled_at && pos.market?.status === 'open' && pos.pool && (
+                    <div className="mt-1" onClick={(e) => e.preventDefault()}>
+                      <CancelBetButton
+                        positionId={pos.id}
+                        outcome={pos.outcome as 'yes' | 'no'}
+                        shares={pos.shares}
+                        cost={pos.cost}
+                        yesPool={pos.pool.yes_pool}
+                        noPool={pos.pool.no_pool}
+                      />
                     </div>
                   )}
                 </a>
