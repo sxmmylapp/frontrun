@@ -16,8 +16,12 @@ export default function LoginPage() {
     e.preventDefault();
     if (!phone.trim()) return;
 
-    // Normalize: add +1 prefix if not already present
-    const normalized = phone.startsWith('+') ? phone : `+1${phone.replace(/\D/g, '')}`;
+    // Normalize: strip non-digits, remove leading 1 (country code), then prepend +1
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('1') && digits.length === 11) {
+      digits = digits.slice(1);
+    }
+    const normalized = `+1${digits}`;
 
     setLoading(true);
     const result = await sendOtp(normalized);
