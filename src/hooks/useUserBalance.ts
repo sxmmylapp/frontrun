@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 type BalanceState = {
@@ -11,8 +11,9 @@ type BalanceState = {
 
 /**
  * Real-time token balance hook.
- * Queries the user_balances view (SUM of token_ledger) and subscribes
- * to Realtime INSERTs on token_ledger for live updates.
+ * Queries the user_balances view on mount and applies optimistic updates
+ * from Realtime INSERTs on token_ledger. Periodically syncs with the DB
+ * to correct any drift.
  */
 export function useUserBalance(): BalanceState {
   const [state, setState] = useState<BalanceState>({
@@ -20,6 +21,8 @@ export function useUserBalance(): BalanceState {
     isLoading: true,
     error: null,
   });
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userIdRef = useRef<string | null>(null);
 
   const fetchBalance = useCallback(async (userId: string) => {
     const supabase = createClient();
@@ -58,6 +61,8 @@ export function useUserBalance(): BalanceState {
         return;
       }
 
+      userIdRef.current = user.id;
+
       // Initial fetch
       await fetchBalance(user.id);
 
@@ -73,12 +78,24 @@ export function useUserBalance(): BalanceState {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            console.debug(
-              '[useUserBalance] DEBUG: ledger insert received',
-              payload.new
-            );
-            // Re-fetch balance from the view to stay consistent
-            fetchBalance(user.id);
+            const inserted = payload.new as { amount: number };
+            // Optimistic update: apply the delta immediately
+            setState((prev) => ({
+              ...prev,
+              balance: prev.balance + Number(inserted.amount),
+              isLoading: false,
+              error: null,
+            }));
+
+            // Debounced background sync to correct any drift
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+            }
+            syncTimeoutRef.current = setTimeout(() => {
+              if (userIdRef.current) {
+                fetchBalance(userIdRef.current);
+              }
+            }, 5000);
           }
         )
         .subscribe();
@@ -89,6 +106,9 @@ export function useUserBalance(): BalanceState {
     return () => {
       if (channel) {
         supabase.removeChannel(channel);
+      }
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
       }
     };
   }, [fetchBalance]);

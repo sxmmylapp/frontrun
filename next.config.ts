@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: `v${pkg.version}`,
   },
+  compress: true,
+  experimental: {
+    optimizePackageImports: ['date-fns', 'decimal.js', 'sonner'],
+  },
 };
 
 export default nextConfig;

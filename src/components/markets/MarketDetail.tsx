@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { BetSlip } from './BetSlip';
@@ -52,7 +52,19 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
   const isResolved = market.status === 'resolved';
   const isCancelled = market.status === 'cancelled';
 
-  // Subscribe to Realtime pool updates
+  // Debounced Realtime pool updates — coalesces rapid changes into a
+  // single re-render (100ms window) to avoid cascading re-renders of
+  // BetSlip/CancelBetButton on every micro-update.
+  const pendingPoolRef = useRef<{ yesPool: number; noPool: number } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPool = useCallback(() => {
+    if (pendingPoolRef.current) {
+      setPool(pendingPoolRef.current);
+      pendingPoolRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -67,18 +79,21 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
         },
         (payload) => {
           const row = payload.new as { yes_pool: number; no_pool: number };
-          setPool({
+          pendingPoolRef.current = {
             yesPool: Number(row.yes_pool),
             noPool: Number(row.no_pool),
-          });
+          };
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(flushPool, 100);
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [market.id]);
+  }, [market.id, flushPool]);
 
   return (
     <div className="px-4 py-4">
