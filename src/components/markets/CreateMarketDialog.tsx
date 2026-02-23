@@ -84,6 +84,11 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setClosesAt(e.target.value)}
               className="rounded-sm"
               min={new Date().toISOString().slice(0, 16)}
+              max={(() => {
+                const d = new Date();
+                d.setMonth(d.getMonth() + 3);
+                return d.toISOString().slice(0, 16);
+              })()}
             />
           </div>
 

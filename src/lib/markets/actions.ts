@@ -45,8 +45,16 @@ export async function createMarket(input: {
   const { question, resolutionCriteria, closesAt } = parsed.data;
 
   // Validate closes_at is in the future
-  if (new Date(closesAt) <= new Date()) {
+  const now = new Date();
+  if (new Date(closesAt) <= now) {
     return { success: false, error: 'Close date must be in the future' };
+  }
+
+  // Validate closes_at is within 3 months
+  const maxDate = new Date(now);
+  maxDate.setMonth(maxDate.getMonth() + 3);
+  if (new Date(closesAt) > maxDate) {
+    return { success: false, error: 'Close date cannot be more than 3 months from now' };
   }
 
   try {
