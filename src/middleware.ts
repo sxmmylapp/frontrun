@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Routes that require authentication
-const protectedPrefixes = ['/feed', '/leaderboard', '/profile', '/admin', '/markets', '/buy'];
+const protectedPrefixes = ['/feed', '/leaderboard', '/profile', '/admin', '/markets'];
 // Routes only for unauthenticated users
 const authRoutes = ['/login', '/verify'];
 
