@@ -36,7 +36,7 @@ export function CancelBetButton({
         noPool: new Decimal(noPool),
       };
       const result = previewSell(pool, outcome, new Decimal(shares));
-      const tokensBack = result.tokensReceived.toDecimalPlaces(2).toNumber();
+      const tokensBack = result.tokensReceived.toDecimalPlaces(0).toNumber();
       const pnl = tokensBack - cost;
       return { tokensBack, pnl };
     } catch {
@@ -52,7 +52,7 @@ export function CancelBetButton({
     if (result.success) {
       const pnl = result.data.tokensReturned - result.data.originalCost;
       toast.success(
-        `Bet cancelled - ${result.data.tokensReturned.toFixed(1)} tokens returned (${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)})`
+        `Bet cancelled - ${Math.round(result.data.tokensReturned)} tokens returned (${pnl >= 0 ? '+' : ''}${Math.round(pnl)})`
       );
       setConfirming(false);
       router.refresh();
@@ -79,11 +79,11 @@ export function CancelBetButton({
         <div className="mt-2 space-y-1 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">You paid</span>
-            <span>{cost.toFixed(1)} tokens</span>
+            <span>{Math.round(cost)} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">You'll receive</span>
-            <span className="font-medium">{preview.tokensBack.toFixed(1)} tokens</span>
+            <span className="font-medium">{Math.round(preview.tokensBack)} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">P&L</span>
@@ -96,7 +96,7 @@ export function CancelBetButton({
                     : 'text-muted-foreground'
               }`}
             >
-              {preview.pnl >= 0 ? '+' : ''}{preview.pnl.toFixed(1)}
+              {preview.pnl >= 0 ? '+' : ''}{Math.round(preview.pnl)}
             </span>
           </div>
         </div>

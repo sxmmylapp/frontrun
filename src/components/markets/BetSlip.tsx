@@ -28,10 +28,10 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
 
   // Max single bet = 25% of pool
   const totalPool = yesPool + noPool;
-  const maxBet = Math.floor(totalPool * 0.25 * 100) / 100;
+  const maxBet = Math.floor(totalPool * 0.25);
   // Per-market total limit = 25% of pool; subtract existing investment
-  const maxMarketTotal = Math.floor(totalPool * 0.25 * 100) / 100;
-  const remaining = Math.max(0, Math.floor((maxMarketTotal - userPositionCost) * 100) / 100);
+  const maxMarketTotal = Math.floor(totalPool * 0.25);
+  const remaining = Math.max(0, Math.floor(maxMarketTotal - userPositionCost));
   const effectiveMax = Math.min(maxBet, remaining, balance);
   const exceedsMax = numAmount > maxBet;
   const exceedsMarketLimit = numAmount > remaining;
@@ -48,11 +48,11 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
       const tradeResult = outcome === 'yes'
         ? { newYes: new Decimal(yesPool).sub(result.sharesReceived), newNo: new Decimal(noPool).add(numAmount) }
         : { newYes: new Decimal(yesPool).add(numAmount), newNo: new Decimal(noPool).sub(result.sharesReceived) };
-      const maxPayout = tradeResult.newYes.add(tradeResult.newNo).toDecimalPlaces(2).toNumber();
+      const maxPayout = tradeResult.newYes.add(tradeResult.newNo).toDecimalPlaces(0).toNumber();
       return {
-        shares: result.sharesReceived.toDecimalPlaces(2).toNumber(),
+        shares: result.sharesReceived.toDecimalPlaces(0).toNumber(),
         maxPayout,
-        impliedProb: result.impliedProbability.mul(100).toDecimalPlaces(1).toNumber(),
+        impliedProb: result.impliedProbability.mul(100).toDecimalPlaces(0).toNumber(),
       };
     } catch {
       return null;
@@ -71,7 +71,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
     setLoading(false);
 
     if (result.success) {
-      toast.success(`Bet placed — ${result.data.shares.toFixed(1)} shares`);
+      toast.success(`Bet placed — ${Math.round(result.data.shares)} shares`);
       setAmount('');
       router.refresh();
     } else {
