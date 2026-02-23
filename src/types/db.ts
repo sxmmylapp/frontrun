@@ -217,6 +217,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          banned_at: string | null
           created_at: string | null
           display_name: string
           id: string
@@ -225,6 +226,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          banned_at?: string | null
           created_at?: string | null
           display_name: string
           id: string
@@ -233,6 +235,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          banned_at?: string | null
           created_at?: string | null
           display_name?: string
           id?: string

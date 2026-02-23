@@ -19,6 +19,7 @@ export type UserSearchResult = {
   display_name: string;
   phone: string;
   balance: number;
+  banned_at: string | null;
 };
 
 export async function searchUsers(input: {
@@ -53,7 +54,7 @@ export async function searchUsers(input: {
 
     const { data: users, error } = await admin
       .from('profiles')
-      .select('id, display_name, phone')
+      .select('id, display_name, phone, banned_at')
       .or(`display_name.ilike.${q},phone.ilike.${q}`)
       .limit(20);
 
@@ -82,6 +83,7 @@ export async function searchUsers(input: {
       display_name: u.display_name,
       phone: u.phone,
       balance: balanceMap.get(u.id) ?? 0,
+      banned_at: u.banned_at,
     }));
 
     console.info(`[${ts}] searchUsers INFO: query="${parsed.data.query}" found ${results.length} users`);
@@ -171,6 +173,155 @@ export async function adjustBalance(input: {
     return { success: true, data: { newBalance } };
   } catch (err) {
     console.error(`[${ts}] adjustBalance ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
+// --- Ban User ---
+
+const banUserSchema = z.object({
+  userId: z.uuid('Invalid user ID'),
+});
+
+export async function banUser(input: {
+  userId: string;
+}): Promise<ActionResult<{ banned_at: string }>> {
+  const ts = new Date().toISOString();
+
+  const parsed = banUserSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return { success: false, error: 'Not authorized — admin only' };
+    }
+
+    // Prevent banning yourself
+    if (parsed.data.userId === user.id) {
+      return { success: false, error: 'Cannot ban yourself' };
+    }
+
+    // Prevent banning other admins
+    const { data: targetUser } = await admin
+      .from('profiles')
+      .select('id, display_name, is_admin, banned_at')
+      .eq('id', parsed.data.userId)
+      .single();
+
+    if (!targetUser) {
+      return { success: false, error: 'User not found' };
+    }
+
+    if (targetUser.is_admin) {
+      return { success: false, error: 'Cannot ban an admin' };
+    }
+
+    if (targetUser.banned_at) {
+      return { success: false, error: 'User is already banned' };
+    }
+
+    const bannedAt = new Date().toISOString();
+    const { error: updateError } = await admin
+      .from('profiles')
+      .update({ banned_at: bannedAt })
+      .eq('id', parsed.data.userId);
+
+    if (updateError) {
+      console.error(`[${ts}] banUser ERROR: ${updateError.message}`);
+      return { success: false, error: 'Failed to ban user' };
+    }
+
+    console.info(
+      `[${ts}] banUser INFO: admin=${user.id} banned user=${parsed.data.userId} (${targetUser.display_name})`
+    );
+
+    return { success: true, data: { banned_at: bannedAt } };
+  } catch (err) {
+    console.error(`[${ts}] banUser ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
+// --- Unban User ---
+
+const unbanUserSchema = z.object({
+  userId: z.uuid('Invalid user ID'),
+});
+
+export async function unbanUser(input: {
+  userId: string;
+}): Promise<ActionResult<undefined>> {
+  const ts = new Date().toISOString();
+
+  const parsed = unbanUserSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return { success: false, error: 'Not authorized — admin only' };
+    }
+
+    const { data: targetUser } = await admin
+      .from('profiles')
+      .select('id, display_name, banned_at')
+      .eq('id', parsed.data.userId)
+      .single();
+
+    if (!targetUser) {
+      return { success: false, error: 'User not found' };
+    }
+
+    if (!targetUser.banned_at) {
+      return { success: false, error: 'User is not banned' };
+    }
+
+    const { error: updateError } = await admin
+      .from('profiles')
+      .update({ banned_at: null })
+      .eq('id', parsed.data.userId);
+
+    if (updateError) {
+      console.error(`[${ts}] unbanUser ERROR: ${updateError.message}`);
+      return { success: false, error: 'Failed to unban user' };
+    }
+
+    console.info(
+      `[${ts}] unbanUser INFO: admin=${user.id} unbanned user=${parsed.data.userId} (${targetUser.display_name})`
+    );
+
+    return { success: true, data: undefined };
+  } catch (err) {
+    console.error(`[${ts}] unbanUser ERROR: unexpected -`, err);
     return { success: false, error: 'Something went wrong' };
   }
 }

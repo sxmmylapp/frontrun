@@ -44,6 +44,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Banned user check — redirect banned users to /banned on protected routes
+  if (user && pathname !== '/banned' && protectedPrefixes.some((p) => pathname.startsWith(p))) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('banned_at')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.banned_at) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/banned';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Unauthenticated user on protected pages -> redirect to login
   if (
     !user &&
