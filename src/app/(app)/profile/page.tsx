@@ -225,6 +225,12 @@ export default function ProfilePage() {
           >
             Adjust Balances &rarr;
           </a>
+          <a
+            href="/admin/bans"
+            className="mt-1 block text-sm text-muted-foreground hover:text-foreground"
+          >
+            Ban Users &rarr;
+          </a>
         </div>
       )}
 

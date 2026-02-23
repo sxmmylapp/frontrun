@@ -68,6 +68,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Check if authenticated user is banned (skip for /banned page and API routes)
+  if (user && pathname !== '/banned' && !pathname.startsWith('/api/')) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_banned')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.is_banned) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/banned';
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
 
