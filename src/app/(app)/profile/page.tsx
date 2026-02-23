@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -85,7 +85,7 @@ export default function ProfilePage() {
     load();
   }, []);
 
-  function calcPnL(pos: Position): { value: number; label: string } {
+  const calcPnL = useCallback((pos: Position): { value: number; label: string } => {
     if (!pos.market) return { value: 0, label: '-' };
     if (pos.cancelled_at) {
       return { value: 0, label: 'Cancelled' };
@@ -100,7 +100,7 @@ export default function ProfilePage() {
       return { value: 0, label: '0 (refunded)' };
     }
     return { value: 0, label: 'Open' };
-  }
+  }, []);
 
   async function handleLogout() {
     const supabase = createClient();

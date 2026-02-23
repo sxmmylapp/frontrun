@@ -10,7 +10,7 @@ export default function AppLayout({
   return (
     <>
       <TopNav />
-      <main className="pb-20 pt-14">{children}</main>
+      <main className="min-h-[100dvh] pb-20 pt-14">{children}</main>
       <BottomNav />
       <WelcomeToast />
     </>
