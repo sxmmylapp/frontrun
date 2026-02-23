@@ -128,21 +128,21 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
           </button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Balance: {balance.toLocaleString()} tokens · Max bet: {effectiveMax.toLocaleString()} tokens
+          Balance: {Math.round(balance).toLocaleString()} tokens · Max bet: {Math.round(effectiveMax).toLocaleString()} tokens
         </p>
         {userPositionCost > 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Invested: {userPositionCost.toLocaleString()} / {maxMarketTotal.toLocaleString()} tokens on this market
+            Invested: {Math.round(userPositionCost).toLocaleString()} / {Math.round(maxMarketTotal).toLocaleString()} tokens on this market
           </p>
         )}
         {exceedsMax && numAmount > 0 && (
           <p className="mt-1 text-xs text-red-400">
-            Exceeds 25% pool limit ({maxBet.toLocaleString()} tokens)
+            Exceeds 25% pool limit ({Math.round(maxBet).toLocaleString()} tokens)
           </p>
         )}
         {!exceedsMax && exceedsMarketLimit && numAmount > 0 && (
           <p className="mt-1 text-xs text-red-400">
-            Exceeds per-market limit ({remaining.toLocaleString()} tokens remaining)
+            Exceeds per-market limit ({Math.round(remaining).toLocaleString()} tokens remaining)
           </p>
         )}
       </div>
@@ -169,7 +169,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
       {numAmount > 0 && numAmount > balance && (
         <div className="mt-3 rounded-sm border border-red-800/40 bg-red-950/10 p-3 text-center">
           <p className="text-xs text-muted-foreground">
-            Insufficient balance — you need {(numAmount - balance).toLocaleString()} more tokens
+            Insufficient balance — you need {Math.round(numAmount - balance).toLocaleString()} more tokens
           </p>
         </div>
       )}

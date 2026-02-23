@@ -205,7 +205,7 @@ export default function AdminPrizesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">
-                        {entry.balance.toLocaleString()}
+                        {Math.round(entry.balance).toLocaleString()}
                       </span>
                       <button
                         onClick={() => handleToggleWinner(entry.id, entry.is_winner)}

@@ -102,7 +102,7 @@ export default async function LeaderboardPage() {
                 </span>
               </div>
               <span className="font-mono text-xs">
-                {entry.balance.toLocaleString()}
+                {Math.round(entry.balance).toLocaleString()}
               </span>
             </div>
           );

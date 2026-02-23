@@ -75,7 +75,7 @@ export default function AdminBalancesPage() {
 
     if (result.success) {
       const verb = parsedAmount > 0 ? 'Credited' : 'Debited';
-      toast.success(`${verb} ${Math.abs(parsedAmount)} tokens. New balance: ${result.data.newBalance.toLocaleString()}`);
+      toast.success(`${verb} ${Math.abs(parsedAmount)} tokens. New balance: ${Math.round(result.data.newBalance).toLocaleString()}`);
       // Update local state
       setSelectedUser({ ...selectedUser, balance: result.data.newBalance });
       setResults((prev) =>
@@ -145,7 +145,7 @@ export default function AdminBalancesPage() {
                   <p className="text-xs text-muted-foreground">{maskPhone(user.phone)}</p>
                 </div>
                 <p className="font-mono text-sm text-muted-foreground">
-                  {user.balance.toLocaleString()} tokens
+                  {Math.round(user.balance).toLocaleString()} tokens
                 </p>
               </div>
             </button>
@@ -160,7 +160,7 @@ export default function AdminBalancesPage() {
             Adjust: {selectedUser.display_name}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Current balance: {selectedUser.balance.toLocaleString()} tokens
+            Current balance: {Math.round(selectedUser.balance).toLocaleString()} tokens
           </p>
 
           <div className="mt-3 space-y-2">
