@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { placeBet } from '@/lib/markets/actions';
@@ -166,18 +165,12 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
         </div>
       )}
 
-      {/* Insufficient balance CTA */}
+      {/* Insufficient balance notice */}
       {numAmount > 0 && numAmount > balance && (
-        <div className="mt-3 rounded-sm border border-green-800/40 bg-green-950/10 p-3 text-center">
+        <div className="mt-3 rounded-sm border border-red-800/40 bg-red-950/10 p-3 text-center">
           <p className="text-xs text-muted-foreground">
-            You need {(numAmount - balance).toLocaleString()} more tokens
+            Insufficient balance — you need {(numAmount - balance).toLocaleString()} more tokens
           </p>
-          <Link
-            href="/buy"
-            className="mt-1 inline-block text-sm font-medium text-green-400 hover:text-green-300"
-          >
-            Buy more tokens
-          </Link>
         </div>
       )}
 
