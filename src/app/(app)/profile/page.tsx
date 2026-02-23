@@ -94,7 +94,7 @@ export default function ProfilePage() {
       const won = pos.market.resolved_outcome === pos.outcome;
       const payout = won ? pos.shares : 0;
       const pnl = payout - pos.cost;
-      return { value: pnl, label: `${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)}` };
+      return { value: pnl, label: `${pnl >= 0 ? '+' : ''}${Math.round(pnl)}` };
     }
     if (pos.market.status === 'cancelled') {
       return { value: 0, label: '0 (refunded)' };
@@ -161,7 +161,7 @@ export default function ProfilePage() {
                         {pos.outcome.toUpperCase()}
                       </span>
                       <span className="text-muted-foreground">
-                        {pos.shares.toFixed(1)} shares @ {pos.cost.toFixed(0)} tokens
+                        {Math.round(pos.shares)} shares @ {Math.round(pos.cost)} tokens
                       </span>
                     </div>
                     <span

@@ -177,7 +177,7 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
                       {pos.outcome.toUpperCase()}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {pos.shares.toFixed(1)} shares @ {pos.cost.toFixed(0)} tokens
+                      {Math.round(pos.shares)} shares @ {Math.round(pos.cost)} tokens
                     </span>
                   </div>
                   {isOpen && (

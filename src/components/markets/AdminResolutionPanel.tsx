@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { resolveMarket, cancelMarket } from '@/lib/markets/admin-actions';
 import { toast } from 'sonner';
 
@@ -12,19 +13,36 @@ type Props = {
   status: string;
 };
 
+type Step = 'select' | 'confirm' | 'final';
+
 export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'yes' | 'no' | 'cancel' | null>(null);
+  const [action, setAction] = useState<'yes' | 'no' | 'cancel' | null>(null);
+  const [step, setStep] = useState<Step>('select');
+  const [typedConfirmation, setTypedConfirmation] = useState('');
 
   const canResolve = status === 'open' || status === 'closed';
   if (!canResolve) return null;
+
+  function getConfirmPhrase(): string {
+    if (action === 'cancel') return 'CANCEL';
+    if (action === 'yes') return 'RESOLVE YES';
+    if (action === 'no') return 'RESOLVE NO';
+    return '';
+  }
+
+  function reset() {
+    setAction(null);
+    setStep('select');
+    setTypedConfirmation('');
+  }
 
   async function handleResolve(outcome: 'yes' | 'no') {
     setLoading(true);
     const result = await resolveMarket({ marketId, outcome });
     setLoading(false);
-    setConfirmAction(null);
+    reset();
 
     if (result.success) {
       toast.success(`Resolved ${outcome.toUpperCase()} — ${result.data.winnersPaid} tokens paid out`);
@@ -38,7 +56,7 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
     setLoading(true);
     const result = await cancelMarket({ marketId });
     setLoading(false);
-    setConfirmAction(null);
+    reset();
 
     if (result.success) {
       toast.success(`Market cancelled — ${result.data.totalRefunded} tokens refunded`);
@@ -46,6 +64,11 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
     } else {
       toast.error(result.error);
     }
+  }
+
+  function handleExecute() {
+    if (action === 'cancel') handleCancel();
+    else if (action) handleResolve(action);
   }
 
   return (
@@ -57,13 +80,14 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
         <p className="mt-1 text-sm">{resolutionCriteria}</p>
       </div>
 
-      {confirmAction === null ? (
+      {/* Step 1: Select action */}
+      {step === 'select' && (
         <div className="mt-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="secondary"
               className="rounded-sm border border-green-800/40 bg-green-950/20 text-green-400 hover:bg-green-950/40"
-              onClick={() => setConfirmAction('yes')}
+              onClick={() => { setAction('yes'); setStep('confirm'); }}
               disabled={loading}
             >
               Resolve YES
@@ -71,7 +95,7 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
             <Button
               variant="secondary"
               className="rounded-sm border border-red-800/40 bg-red-950/20 text-red-400 hover:bg-red-950/40"
-              onClick={() => setConfirmAction('no')}
+              onClick={() => { setAction('no'); setStep('confirm'); }}
               disabled={loading}
             >
               Resolve NO
@@ -80,18 +104,21 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
           <Button
             variant="secondary"
             className="w-full rounded-sm text-muted-foreground"
-            onClick={() => setConfirmAction('cancel')}
+            onClick={() => { setAction('cancel'); setStep('confirm'); }}
             disabled={loading}
           >
             Cancel Market (Refund All)
           </Button>
         </div>
-      ) : (
+      )}
+
+      {/* Step 2: First confirmation */}
+      {step === 'confirm' && (
         <div className="mt-3 rounded-sm border border-yellow-800/40 bg-yellow-950/20 p-3">
           <p className="text-sm font-medium text-yellow-400">
-            {confirmAction === 'cancel'
+            {action === 'cancel'
               ? 'Cancel this market and refund all bettors?'
-              : `Resolve as ${confirmAction.toUpperCase()}?`}
+              : `Resolve as ${action?.toUpperCase()}?`}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             This action cannot be undone.
@@ -100,20 +127,54 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
             <Button
               variant="secondary"
               className="flex-1 rounded-sm"
-              onClick={() => setConfirmAction(null)}
+              onClick={reset}
               disabled={loading}
             >
               Back
             </Button>
             <Button
               className="flex-1 rounded-sm"
-              onClick={() => {
-                if (confirmAction === 'cancel') handleCancel();
-                else handleResolve(confirmAction);
-              }}
+              onClick={() => { setStep('final'); setTypedConfirmation(''); }}
               disabled={loading}
             >
-              {loading ? 'Processing...' : 'Confirm'}
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Final confirmation — type to confirm */}
+      {step === 'final' && (
+        <div className="mt-3 rounded-sm border border-red-800/40 bg-red-950/20 p-3">
+          <p className="text-sm font-medium text-red-400">
+            Final confirmation
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Type <span className="font-mono font-medium text-foreground">{getConfirmPhrase()}</span> to proceed.
+          </p>
+          <Input
+            className="mt-2 rounded-sm font-mono text-sm"
+            placeholder={getConfirmPhrase()}
+            value={typedConfirmation}
+            onChange={(e) => setTypedConfirmation(e.target.value)}
+            disabled={loading}
+          />
+          <div className="mt-3 flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1 rounded-sm"
+              onClick={() => { setStep('confirm'); setTypedConfirmation(''); }}
+              disabled={loading}
+            >
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1 rounded-sm"
+              onClick={handleExecute}
+              disabled={loading || typedConfirmation.trim().toUpperCase() !== getConfirmPhrase()}
+            >
+              {loading ? 'Processing...' : 'Execute'}
             </Button>
           </div>
         </div>
