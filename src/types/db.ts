@@ -88,12 +88,48 @@ export type Database = {
           },
         ]
       }
+      market_options: {
+        Row: {
+          id: string
+          market_id: string
+          label: string
+          pool: number
+          sort_order: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          market_id: string
+          label: string
+          pool: number
+          sort_order?: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          market_id?: string
+          label?: string
+          pool?: number
+          sort_order?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_options_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       markets: {
         Row: {
           closes_at: string
           created_at: string | null
           creator_id: string
           id: string
+          market_type: string
           question: string
           resolution_criteria: string
           resolved_at: string | null
@@ -106,6 +142,7 @@ export type Database = {
           created_at?: string | null
           creator_id: string
           id?: string
+          market_type?: string
           question: string
           resolution_criteria: string
           resolved_at?: string | null
@@ -118,6 +155,7 @@ export type Database = {
           created_at?: string | null
           creator_id?: string
           id?: string
+          market_type?: string
           question?: string
           resolution_criteria?: string
           resolved_at?: string | null
@@ -142,6 +180,7 @@ export type Database = {
           created_at: string | null
           id: string
           market_id: string
+          market_option_id: string | null
           outcome: string
           shares: number
           user_id: string
@@ -152,6 +191,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           market_id: string
+          market_option_id?: string | null
           outcome: string
           shares: number
           user_id: string
@@ -162,6 +202,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           market_id?: string
+          market_option_id?: string | null
           outcome?: string
           shares?: number
           user_id?: string
@@ -172,6 +213,13 @@ export type Database = {
             columns: ["market_id"]
             isOneToOne: false
             referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_market_option_id_fkey"
+            columns: ["market_option_id"]
+            isOneToOne: false
+            referencedRelation: "market_options"
             referencedColumns: ["id"]
           },
           {
@@ -402,8 +450,25 @@ export type Database = {
         }
         Returns: Json
       }
+      place_bet_mc: {
+        Args: {
+          p_amount: number
+          p_market_id: string
+          p_option_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      cancel_bet_mc: {
+        Args: { p_position_id: string; p_user_id: string }
+        Returns: Json
+      }
       resolve_market: {
         Args: { p_admin_id: string; p_market_id: string; p_outcome: string }
+        Returns: Json
+      }
+      resolve_market_mc: {
+        Args: { p_admin_id: string; p_market_id: string; p_winning_option_id: string }
         Returns: Json
       }
     }
