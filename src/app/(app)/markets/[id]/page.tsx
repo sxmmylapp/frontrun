@@ -10,38 +10,34 @@ export default async function MarketPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: market } = await supabase
-    .from('markets')
-    .select(`
-      id,
-      question,
-      resolution_criteria,
-      status,
-      resolved_outcome,
-      closes_at,
-      resolved_at,
-      created_at,
-      creator_id,
-      market_pools ( yes_pool, no_pool )
-    `)
-    .eq('id', id)
-    .single();
+  // Parallel fetch: market data + user auth at the same time
+  const [marketResult, userResult] = await Promise.all([
+    supabase
+      .from('markets')
+      .select(`
+        id,
+        question,
+        resolution_criteria,
+        status,
+        resolved_outcome,
+        closes_at,
+        resolved_at,
+        created_at,
+        creator_id,
+        market_pools ( yes_pool, no_pool )
+      `)
+      .eq('id', id)
+      .single(),
+    supabase.auth.getUser(),
+  ]);
 
+  const market = marketResult.data;
   if (!market) return notFound();
 
-  // Check if current user is admin
-  const { data: { user } } = await supabase.auth.getUser();
-  let isAdmin = false;
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-    isAdmin = profile?.is_admin === true;
-  }
+  const user = userResult.data.user;
 
-  // Fetch user's active positions on this market
+  // Parallel fetch: admin check + positions (both need user, so run together)
+  let isAdmin = false;
   let userPositions: {
     id: string;
     outcome: string;
@@ -49,16 +45,26 @@ export default async function MarketPage({
     cost: number;
     cancelled_at: string | null;
   }[] = [];
+
   if (user) {
-    const { data: positions } = await supabase
-      .from('positions')
-      .select('id, outcome, shares, cost, cancelled_at')
-      .eq('user_id', user.id)
-      .eq('market_id', id)
-      .is('cancelled_at', null)
-      .order('created_at', { ascending: false });
-    if (positions) {
-      userPositions = positions;
+    const [profileResult, positionsResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('positions')
+        .select('id, outcome, shares, cost, cancelled_at')
+        .eq('user_id', user.id)
+        .eq('market_id', id)
+        .is('cancelled_at', null)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    isAdmin = profileResult.data?.is_admin === true;
+    if (positionsResult.data) {
+      userPositions = positionsResult.data;
     }
   }
 

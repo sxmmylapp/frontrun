@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
-import { BetSlip } from './BetSlip';
-import { AdminResolutionPanel } from './AdminResolutionPanel';
 import { CancelBetButton } from './CancelBetButton';
+
+// Lazy-load heavy components that are conditionally rendered
+const BetSlip = lazy(() => import('./BetSlip').then(m => ({ default: m.BetSlip })));
+const AdminResolutionPanel = lazy(() => import('./AdminResolutionPanel').then(m => ({ default: m.AdminResolutionPanel })));
 
 type UserPosition = {
   id: string;
@@ -98,9 +101,9 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
   return (
     <div className="px-4 py-4">
       {/* Back link */}
-      <a href="/feed" className="mb-4 inline-block text-xs text-muted-foreground hover:text-foreground">
+      <Link href="/feed" className="mb-4 inline-block text-xs text-muted-foreground hover:text-foreground">
         &larr; Back to markets
-      </a>
+      </Link>
 
       {/* Question */}
       <h1 className="mt-2 text-lg font-semibold leading-snug">{market.question}</h1>
@@ -160,12 +163,14 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
 
       {/* Bet slip */}
       {isOpen && currentUserId && currentUserId !== market.creatorId && (
-        <BetSlip
-          marketId={market.id}
-          yesPool={pool.yesPool}
-          noPool={pool.noPool}
-          userPositionCost={userPositions.reduce((sum, p) => sum + p.cost, 0)}
-        />
+        <Suspense fallback={<div className="mt-4 h-48 animate-pulse rounded-sm border border-border bg-card" />}>
+          <BetSlip
+            marketId={market.id}
+            yesPool={pool.yesPool}
+            noPool={pool.noPool}
+            userPositionCost={userPositions.reduce((sum, p) => sum + p.cost, 0)}
+          />
+        </Suspense>
       )}
       {isOpen && currentUserId && currentUserId === market.creatorId && (
         <div className="mt-4 rounded-sm border border-yellow-800/40 bg-yellow-950/20 px-4 py-3 text-sm text-yellow-400">
@@ -214,11 +219,13 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
 
       {/* Admin resolution panel */}
       {isAdmin && (
-        <AdminResolutionPanel
-          marketId={market.id}
-          resolutionCriteria={market.resolutionCriteria}
-          status={market.status}
-        />
+        <Suspense fallback={<div className="mt-6 h-32 animate-pulse rounded-sm border border-yellow-800/40 bg-yellow-950/10" />}>
+          <AdminResolutionPanel
+            marketId={market.id}
+            resolutionCriteria={market.resolutionCriteria}
+            status={market.status}
+          />
+        </Suspense>
       )}
 
       {/* Resolution criteria */}
