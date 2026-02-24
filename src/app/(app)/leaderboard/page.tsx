@@ -13,12 +13,19 @@ export default async function LeaderboardPage() {
   // Use admin client to query across all users (RLS on profiles only allows own)
   const admin = createAdminClient();
 
-  // Get all user balances from the view
-  const { data: balances } = await admin
-    .from('user_balances')
-    .select('user_id, balance')
-    .order('balance', { ascending: false })
-    .limit(100);
+  // Parallel fetch: balances + current user auth
+  const supabase = await createClient();
+  const [balancesResult, userResult] = await Promise.all([
+    admin
+      .from('user_balances')
+      .select('user_id, balance')
+      .order('balance', { ascending: false })
+      .limit(100),
+    supabase.auth.getUser(),
+  ]);
+
+  const balances = balancesResult.data;
+  const user = userResult.data.user;
 
   if (!balances || balances.length === 0) {
     return (
@@ -41,10 +48,6 @@ export default async function LeaderboardPage() {
   const nameMap = new Map(
     (profiles ?? []).map((p) => [p.id, p.display_name])
   );
-
-  // Check if current user is on the board
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
   const entries: LeaderboardEntry[] = balances.map((b, i) => ({
     rank: i + 1,

@@ -18,7 +18,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({ request });
@@ -37,8 +37,37 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Fast path: unauthenticated users — no need to check ban status
+  if (!user) {
+    if (protectedPrefixes.some((p) => pathname.startsWith(p))) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+    if (pathname === '/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  // Authenticated: redirect auth pages → feed immediately (no ban check needed)
+  if (authRoutes.some((r) => pathname.startsWith(r))) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/feed';
+    return NextResponse.redirect(url);
+  }
+
+  // Authenticated: redirect root → feed immediately
+  if (pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/feed';
+    return NextResponse.redirect(url);
+  }
+
   // Check if banned user is trying to access protected pages
-  if (user && pathname !== '/banned') {
+  if (pathname !== '/banned') {
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_banned')
@@ -52,37 +81,6 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/banned';
       return NextResponse.redirect(url);
     }
-  }
-
-  // Authenticated user on auth pages -> redirect to feed
-  if (user && authRoutes.some((r) => pathname.startsWith(r))) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/feed';
-    return NextResponse.redirect(url);
-  }
-
-  // Unauthenticated user on protected pages -> redirect to login
-  if (
-    !user &&
-    protectedPrefixes.some((p) => pathname.startsWith(p))
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  // Unauthenticated user on root -> redirect to login
-  if (!user && pathname === '/') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  // Authenticated user on root -> redirect to feed
-  if (user && pathname === '/') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/feed';
-    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;

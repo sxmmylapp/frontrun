@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,9 +100,9 @@ export default function AdminBalancesPage() {
 
   return (
     <div className="px-4 py-4">
-      <a href="/profile" className="mb-4 inline-block text-xs text-muted-foreground hover:text-foreground">
+      <Link href="/profile" className="mb-4 inline-block text-xs text-muted-foreground hover:text-foreground">
         &larr; Back
-      </a>
+      </Link>
 
       <h2 className="mt-2 text-lg font-semibold">Adjust Balances</h2>
       <p className="mt-1 text-xs text-muted-foreground">
