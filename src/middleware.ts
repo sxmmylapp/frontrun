@@ -37,6 +37,23 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Check if banned user is trying to access protected pages
+  if (user && pathname !== '/banned') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_banned')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.is_banned) {
+      // Sign them out and redirect to banned page
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = '/banned';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Authenticated user on auth pages -> redirect to feed
   if (user && authRoutes.some((r) => pathname.startsWith(r))) {
     const url = request.nextUrl.clone();
