@@ -23,7 +23,21 @@ function mcTopProbability(options: { label: string; pool: number }[]): { label: 
 export default async function FeedPage() {
   const supabase = await createClient();
 
-  const { data: markets } = await supabase
+  // Try the full query with MC fields first; fall back to binary-only if
+  // the migration hasn't been applied yet (market_type / market_options
+  // columns won't exist).
+  let markets: {
+    id: string;
+    question: string;
+    status: string;
+    closes_at: string;
+    created_at: string | null;
+    market_type?: string;
+    market_pools: { yes_pool: number; no_pool: number } | { yes_pool: number; no_pool: number }[] | null;
+    market_options?: { label: string; pool: number; sort_order: number }[] | null;
+  }[] | null = null;
+
+  const { data: fullData, error: fullError } = await supabase
     .from('markets')
     .select(`
       id,
@@ -37,6 +51,26 @@ export default async function FeedPage() {
     `)
     .in('status', ['open', 'closed'])
     .order('created_at', { ascending: false });
+
+  if (!fullError && fullData) {
+    markets = fullData;
+  } else {
+    // Fallback: migration not applied yet, query without MC fields
+    const { data: fallbackData } = await supabase
+      .from('markets')
+      .select(`
+        id,
+        question,
+        status,
+        closes_at,
+        created_at,
+        market_pools ( yes_pool, no_pool )
+      `)
+      .in('status', ['open', 'closed'])
+      .order('created_at', { ascending: false });
+
+    markets = fallbackData;
+  }
 
   return (
     <div className="px-4 py-4">
