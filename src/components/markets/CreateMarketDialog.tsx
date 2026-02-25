@@ -1,18 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createMarket } from '@/lib/markets/actions';
+import { generateResolutionCriteria } from '@/lib/ai/actions';
 import { toast } from 'sonner';
 
 export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [question, setQuestion] = useState('');
   const [criteria, setCriteria] = useState('');
   const [closesAt, setClosesAt] = useState('');
+  // Track if user has manually edited criteria — skip auto-gen if so
+  const [criteriaEdited, setCriteriaEdited] = useState(false);
+
+  const handleGenerateCriteria = useCallback(
+    async (q: string) => {
+      if (!q || q.trim().length < 5 || criteriaEdited) return;
+
+      setGenerating(true);
+      const result = await generateResolutionCriteria(q);
+      setGenerating(false);
+
+      if (result.success) {
+        setCriteria(result.criteria);
+      }
+    },
+    [criteriaEdited]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,19 +76,30 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
               placeholder="Will it rain this Friday?"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              onBlur={() => handleGenerateCriteria(question)}
               className="rounded-sm"
               autoFocus
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Resolution Criteria
-            </label>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Resolution Criteria
+              </label>
+              {generating && (
+                <span className="text-xs text-muted-foreground animate-pulse">
+                  Generating...
+                </span>
+              )}
+            </div>
             <textarea
               placeholder="Resolves YES if any weather service records rainfall in downtown on Friday..."
               value={criteria}
-              onChange={(e) => setCriteria(e.target.value)}
+              onChange={(e) => {
+                setCriteria(e.target.value);
+                setCriteriaEdited(true);
+              }}
               className="flex min-h-[80px] w-full rounded-sm border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
