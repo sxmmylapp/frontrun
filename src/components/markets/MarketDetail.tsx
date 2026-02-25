@@ -9,6 +9,7 @@ import { CancelBetButton } from './CancelBetButton';
 // Lazy-load heavy components that are conditionally rendered
 const BetSlip = lazy(() => import('./BetSlip').then(m => ({ default: m.BetSlip })));
 const AdminResolutionPanel = lazy(() => import('./AdminResolutionPanel').then(m => ({ default: m.AdminResolutionPanel })));
+const ProbabilityTrendChart = lazy(() => import('./ProbabilityTrendChart').then(m => ({ default: m.ProbabilityTrendChart })));
 
 type UserPosition = {
   id: string;
@@ -16,6 +17,13 @@ type UserPosition = {
   shares: number;
   cost: number;
   cancelled_at: string | null;
+};
+
+type PositionRecord = {
+  outcome: 'yes' | 'no';
+  shares: number;
+  cost: number;
+  createdAt: string;
 };
 
 type MarketProps = {
@@ -37,6 +45,7 @@ type MarketProps = {
   isAdmin?: boolean;
   currentUserId: string | null;
   userPositions?: UserPosition[];
+  positionHistory?: PositionRecord[];
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -88,7 +97,7 @@ const PositionItem = memo(function PositionItem({
   );
 });
 
-export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [] }: MarketProps) {
+export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [], positionHistory = [] }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
   const yesProb = calcProb(pool.yesPool, pool.noPool);
   const noProb = 100 - yesProb;
@@ -187,6 +196,15 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
           <div className="mt-1 text-xs text-muted-foreground">NO</div>
         </div>
       </div>
+
+      {/* Probability trend chart */}
+      <Suspense fallback={<div className="mt-4 h-[128px] animate-pulse rounded-sm border border-border bg-card" />}>
+        <ProbabilityTrendChart
+          positionHistory={positionHistory}
+          currentPool={pool}
+          createdAt={market.createdAt}
+        />
+      </Suspense>
 
       {/* Pool info */}
       <div className="mt-3 flex justify-between text-xs text-muted-foreground">

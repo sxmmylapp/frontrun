@@ -46,6 +46,21 @@ export default async function MarketPage({
     cancelled_at: string | null;
   }[] = [];
 
+  // Fetch all positions for probability history (no auth needed)
+  const allPositionsResult = await supabase
+    .from('positions')
+    .select('outcome, shares, cost, created_at, cancelled_at')
+    .eq('market_id', id)
+    .is('cancelled_at', null)
+    .order('created_at', { ascending: true });
+
+  const positionHistory = (allPositionsResult.data ?? []).map((p) => ({
+    outcome: p.outcome as 'yes' | 'no',
+    shares: Number(p.shares),
+    cost: Number(p.cost),
+    createdAt: p.created_at!,
+  }));
+
   if (user) {
     const [profileResult, positionsResult] = await Promise.all([
       supabase
@@ -92,6 +107,7 @@ export default async function MarketPage({
       isAdmin={isAdmin}
       currentUserId={user?.id ?? null}
       userPositions={userPositions}
+      positionHistory={positionHistory}
     />
   );
 }
