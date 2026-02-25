@@ -37,7 +37,7 @@ export function TokenBalance() {
     <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
       <CoinIcon />
       {isLoading ? (
-        <span className="inline-block h-4 w-10 animate-pulse rounded bg-muted" />
+        <span className="inline-block h-4 w-16 animate-pulse rounded bg-muted" />
       ) : (
         <span>{formatBalance(balance)}</span>
       )}

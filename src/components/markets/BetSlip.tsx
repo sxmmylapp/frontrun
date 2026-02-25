@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
   const [outcome, setOutcome] = useState<'yes' | 'no'>('yes');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
 
   const numAmount = Number(amount) || 0;
 
@@ -73,7 +74,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
     if (result.success) {
       toast.success(`Bet placed — ${Math.round(result.data.shares)} shares`);
       setAmount('');
-      router.refresh();
+      startTransition(() => { router.refresh(); });
     } else {
       toast.error(result.error);
     }
@@ -87,7 +88,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           onClick={() => setOutcome('yes')}
-          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-all active:scale-[0.97] ${
             outcome === 'yes'
               ? 'border-green-500 bg-green-950/30 text-green-400'
               : 'border-border text-muted-foreground hover:text-foreground'
@@ -97,7 +98,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
         </button>
         <button
           onClick={() => setOutcome('no')}
-          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-sm border px-3 py-2 text-sm font-medium transition-all active:scale-[0.97] ${
             outcome === 'no'
               ? 'border-red-500 bg-red-950/30 text-red-400'
               : 'border-border text-muted-foreground hover:text-foreground'
