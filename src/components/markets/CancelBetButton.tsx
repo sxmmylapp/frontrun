@@ -53,7 +53,7 @@ export function CancelBetButton({
     if (result.success) {
       const pnl = result.data.tokensReturned - result.data.originalCost;
       toast.success(
-        `Bet cancelled - ${Math.round(result.data.tokensReturned)} tokens returned (${pnl >= 0 ? '+' : ''}${Math.round(pnl)})`
+        `Position sold — ${Math.round(result.data.tokensReturned)} tokens returned (${pnl >= 0 ? '+' : ''}${Math.round(pnl)})`
       );
       setConfirming(false);
       startTransition(() => { router.refresh(); });
@@ -68,14 +68,14 @@ export function CancelBetButton({
         onClick={() => setConfirming(true)}
         className="text-xs text-yellow-400 hover:text-yellow-300"
       >
-        Cancel bet
+        Sell position
       </button>
     );
   }
 
   return (
     <div className="mt-2 rounded-sm border border-yellow-800/40 bg-yellow-950/10 p-3">
-      <p className="text-xs font-medium text-yellow-400">Cancel this bet?</p>
+      <p className="text-xs font-medium text-yellow-400">Sell this position?</p>
       {preview && (
         <div className="mt-2 space-y-1 text-xs">
           <div className="flex justify-between">
@@ -110,7 +110,7 @@ export function CancelBetButton({
           onClick={handleCancel}
           disabled={loading}
         >
-          {loading ? 'Cancelling...' : 'Confirm cancel'}
+          {loading ? 'Selling...' : 'Confirm sell'}
         </Button>
         <Button
           size="sm"
@@ -119,7 +119,7 @@ export function CancelBetButton({
           onClick={() => setConfirming(false)}
           disabled={loading}
         >
-          Keep bet
+          Keep position
         </Button>
       </div>
     </div>

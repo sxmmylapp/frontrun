@@ -39,7 +39,7 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, appVer
   const calcPnL = useCallback((pos: Position): { value: number; label: string } => {
     if (!pos.market) return { value: 0, label: '-' };
     if (pos.cancelled_at) {
-      return { value: 0, label: 'Cancelled' };
+      return { value: 0, label: 'Sold' };
     }
     if (pos.market.status === 'resolved') {
       const won = pos.market.resolved_outcome === pos.outcome;
@@ -182,7 +182,7 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, appVer
                   {pos.market && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {pos.cancelled_at ? (
-                        <span className="text-yellow-400">Cancelled</span>
+                        <span className="text-yellow-400">Sold</span>
                       ) : pos.market.status === 'resolved' ? (
                         <span>
                           Resolved: {pos.market.resolved_outcome?.toUpperCase()}
