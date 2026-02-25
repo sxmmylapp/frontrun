@@ -159,26 +159,23 @@ export function ProfileClient({ displayName, isAdmin, positions, appVersion }: P
       </div>
 
       {isAdmin && (
-        <div className="mt-8 rounded-sm border border-yellow-800/40 bg-yellow-950/10 p-3">
+        <div className="mt-8 flex flex-col gap-2 rounded-sm border border-yellow-800/40 bg-yellow-950/10 p-3">
           <h3 className="text-xs font-medium text-yellow-400">Admin</h3>
-          <Link
-            href="/admin/prizes"
-            className="mt-1 block text-sm text-muted-foreground hover:text-foreground"
-          >
-            Manage Prize Periods &rarr;
-          </Link>
-          <Link
-            href="/admin/balances"
-            className="mt-1 block text-sm text-muted-foreground hover:text-foreground"
-          >
-            Adjust Balances &rarr;
-          </Link>
-          <Link
-            href="/admin/bans"
-            className="mt-1 block text-sm text-muted-foreground hover:text-foreground"
-          >
-            Ban Users &rarr;
-          </Link>
+          <Button asChild variant="outline" size="lg" className="w-full justify-between">
+            <Link href="/admin/prizes">
+              Manage Prize Periods <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="w-full justify-between">
+            <Link href="/admin/balances">
+              Adjust Balances <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="w-full justify-between">
+            <Link href="/admin/bans">
+              Ban Users <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </Button>
         </div>
       )}
 
