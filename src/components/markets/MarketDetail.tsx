@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { CancelBetButton } from './CancelBetButton';
 
+import { ActivityFeed, type ActivityItem } from './ActivityFeed';
+
 // Lazy-load heavy components that are conditionally rendered
 const BetSlip = lazy(() => import('./BetSlip').then(m => ({ default: m.BetSlip })));
 const AdminResolutionPanel = lazy(() => import('./AdminResolutionPanel').then(m => ({ default: m.AdminResolutionPanel })));
@@ -46,6 +48,8 @@ type MarketProps = {
   currentUserId: string | null;
   userPositions?: UserPosition[];
   positionHistory?: PositionRecord[];
+  volume?: number;
+  activityFeed?: ActivityItem[];
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -97,7 +101,7 @@ const PositionItem = memo(function PositionItem({
   );
 });
 
-export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [], positionHistory = [] }: MarketProps) {
+export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [], positionHistory = [], volume = 0, activityFeed = [] }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
   const yesProb = calcProb(pool.yesPool, pool.noPool);
   const noProb = 100 - yesProb;
@@ -208,7 +212,10 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
 
       {/* Pool info */}
       <div className="mt-3 flex justify-between text-xs text-muted-foreground">
-        <span>Pool: {Math.round(pool.yesPool + pool.noPool)} tokens</span>
+        <span>
+          Pool: {Math.round(pool.yesPool + pool.noPool).toLocaleString()}
+          {volume > 0 && <> · Vol: {Math.round(volume).toLocaleString()}</>}
+        </span>
         <span>
           {isOpen ? (
             <>Closes {formatDistanceToNow(closesAt, { addSuffix: true })}</>
@@ -256,6 +263,9 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
           </div>
         </div>
       )}
+
+      {/* Activity feed */}
+      <ActivityFeed marketId={market.id} initialItems={activityFeed} />
 
       {/* Admin resolution panel */}
       {isAdmin && (

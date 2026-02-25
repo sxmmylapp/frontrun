@@ -46,20 +46,42 @@ export default async function MarketPage({
     cancelled_at: string | null;
   }[] = [];
 
-  // Fetch all positions for probability history (no auth needed)
-  const allPositionsResult = await supabase
-    .from('positions')
-    .select('outcome, shares, cost, created_at, cancelled_at')
-    .eq('market_id', id)
-    .is('cancelled_at', null)
-    .order('created_at', { ascending: true });
+  // Fetch all positions for probability history + activity feed (no auth needed)
+  const [allPositionsResult, activityResult] = await Promise.all([
+    supabase
+      .from('positions')
+      .select('outcome, shares, cost, created_at, cancelled_at')
+      .eq('market_id', id)
+      .is('cancelled_at', null)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('positions')
+      .select('id, outcome, shares, cost, created_at, cancelled_at, profiles!positions_user_id_fkey ( display_name )')
+      .eq('market_id', id)
+      .order('created_at', { ascending: false }),
+  ]);
 
-  const positionHistory = (allPositionsResult.data ?? []).map((p) => ({
+  const allPositions = allPositionsResult.data ?? [];
+  const positionHistory = allPositions.map((p) => ({
     outcome: p.outcome as 'yes' | 'no',
     shares: Number(p.shares),
     cost: Number(p.cost),
     createdAt: p.created_at!,
   }));
+  const volume = allPositions.reduce((sum, p) => sum + Number(p.cost), 0);
+
+  const activityFeed = (activityResult.data ?? []).map((p) => {
+    const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+    return {
+      id: p.id,
+      outcome: p.outcome as 'yes' | 'no',
+      shares: Number(p.shares),
+      cost: Number(p.cost),
+      createdAt: p.created_at!,
+      cancelledAt: p.cancelled_at,
+      displayName: profile?.display_name ?? 'Anonymous',
+    };
+  });
 
   if (user) {
     const [profileResult, positionsResult] = await Promise.all([
@@ -108,6 +130,8 @@ export default async function MarketPage({
       currentUserId={user?.id ?? null}
       userPositions={userPositions}
       positionHistory={positionHistory}
+      volume={volume}
+      activityFeed={activityFeed}
     />
   );
 }

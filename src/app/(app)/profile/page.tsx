@@ -8,8 +8,8 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Parallel fetch: profile + positions at the same time
-  const [profileResult, positionsResult] = await Promise.all([
+  // Parallel fetch: profile + positions + balance at the same time
+  const [profileResult, positionsResult, balanceResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('display_name, is_admin')
@@ -28,6 +28,11 @@ export default async function ProfilePage() {
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single(),
   ]);
 
   const profile = profileResult.data;
@@ -51,6 +56,7 @@ export default async function ProfilePage() {
       displayName={profile?.display_name ?? ''}
       isAdmin={profile?.is_admin === true}
       positions={positions}
+      balance={Number(balanceResult.data?.balance ?? 0)}
       appVersion={APP_VERSION}
     />
   );

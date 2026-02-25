@@ -12,18 +12,30 @@ function probability(yesPool: number, noPool: number): number {
 export default async function FeedPage() {
   const supabase = await createClient();
 
-  const { data: markets } = await supabase
-    .from('markets')
-    .select(`
-      id,
-      question,
-      status,
-      closes_at,
-      created_at,
-      market_pools ( yes_pool, no_pool )
-    `)
-    .in('status', ['open', 'closed'])
-    .order('created_at', { ascending: false });
+  const [{ data: markets }, { data: volumeData }] = await Promise.all([
+    supabase
+      .from('markets')
+      .select(`
+        id,
+        question,
+        status,
+        closes_at,
+        created_at,
+        market_pools ( yes_pool, no_pool )
+      `)
+      .in('status', ['open', 'closed'])
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('positions')
+      .select('market_id, cost')
+      .is('cancelled_at', null),
+  ]);
+
+  // Aggregate volume per market
+  const volumeByMarket: Record<string, number> = {};
+  for (const p of volumeData ?? []) {
+    volumeByMarket[p.market_id] = (volumeByMarket[p.market_id] ?? 0) + Number(p.cost);
+  }
 
   return (
     <div className="px-4 py-4">
@@ -49,6 +61,7 @@ export default async function FeedPage() {
               : 50;
             const closesAt = new Date(market.closes_at);
             const isClosed = closesAt <= new Date() || market.status === 'closed';
+            const volume = Math.round(volumeByMarket[market.id] ?? 0);
 
             return (
               <Link
@@ -66,12 +79,17 @@ export default async function FeedPage() {
                     </span>
                     <span className="text-xs text-muted-foreground">YES</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {isClosed ? (
-                      <span className="text-yellow-500">Closed</span>
-                    ) : (
-                      <>Closes {formatDistanceToNow(closesAt, { addSuffix: true })}</>
+                  <div className="text-right text-xs text-muted-foreground">
+                    {volume > 0 && (
+                      <div>{volume.toLocaleString()} tokens traded</div>
                     )}
+                    <div>
+                      {isClosed ? (
+                        <span className="text-yellow-500">Closed</span>
+                      ) : (
+                        <>Closes {formatDistanceToNow(closesAt, { addSuffix: true })}</>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Link>
