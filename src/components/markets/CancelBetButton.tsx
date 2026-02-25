@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export function CancelBetButton({
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
 
   const preview = useMemo(() => {
     try {
@@ -55,7 +56,7 @@ export function CancelBetButton({
         `Bet cancelled - ${Math.round(result.data.tokensReturned)} tokens returned (${pnl >= 0 ? '+' : ''}${Math.round(pnl)})`
       );
       setConfirming(false);
-      router.refresh();
+      startTransition(() => { router.refresh(); });
     } else {
       toast.error(result.error);
     }

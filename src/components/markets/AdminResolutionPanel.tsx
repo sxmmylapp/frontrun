@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ type Step = 'select' | 'confirm' | 'final';
 export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
   const [action, setAction] = useState<'yes' | 'no' | 'cancel' | null>(null);
   const [step, setStep] = useState<Step>('select');
   const [typedConfirmation, setTypedConfirmation] = useState('');
@@ -46,7 +47,7 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
 
     if (result.success) {
       toast.success(`Resolved ${outcome.toUpperCase()} — ${result.data.winnersPaid} tokens paid out`);
-      router.refresh();
+      startTransition(() => { router.refresh(); });
     } else {
       toast.error(result.error);
     }
@@ -60,7 +61,7 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
 
     if (result.success) {
       toast.success(`Market cancelled — ${result.data.totalRefunded} tokens refunded`);
-      router.refresh();
+      startTransition(() => { router.refresh(); });
     } else {
       toast.error(result.error);
     }

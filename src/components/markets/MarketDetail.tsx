@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, memo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -44,6 +44,49 @@ function calcProb(yesPool: number, noPool: number): number {
   if (total === 0) return 50;
   return (noPool / total) * 100;
 }
+
+const PositionItem = memo(function PositionItem({
+  pos,
+  isOpen,
+  yesPool,
+  noPool,
+}: {
+  pos: UserPosition;
+  isOpen: boolean;
+  yesPool: number;
+  noPool: number;
+}) {
+  return (
+    <div className="flex items-start justify-between">
+      <div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-sm px-1.5 py-0.5 text-xs font-medium ${
+              pos.outcome === 'yes'
+                ? 'bg-green-950/30 text-green-400'
+                : 'bg-red-950/30 text-red-400'
+            }`}
+          >
+            {pos.outcome.toUpperCase()}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {Math.round(pos.shares)} shares @ {Math.round(pos.cost)} tokens
+          </span>
+        </div>
+        {isOpen && (
+          <CancelBetButton
+            positionId={pos.id}
+            outcome={pos.outcome as 'yes' | 'no'}
+            shares={pos.shares}
+            cost={pos.cost}
+            yesPool={yesPool}
+            noPool={noPool}
+          />
+        )}
+      </div>
+    </div>
+  );
+});
 
 export function MarketDetail({ market, initialPool, isAdmin, currentUserId, userPositions = [] }: MarketProps) {
   const [pool, setPool] = useState(initialPool);
@@ -184,34 +227,13 @@ export function MarketDetail({ market, initialPool, isAdmin, currentUserId, user
           <h3 className="text-xs font-medium text-muted-foreground">Your Positions</h3>
           <div className="mt-2 space-y-3">
             {userPositions.map((pos) => (
-              <div key={pos.id} className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-sm px-1.5 py-0.5 text-xs font-medium ${
-                        pos.outcome === 'yes'
-                          ? 'bg-green-950/30 text-green-400'
-                          : 'bg-red-950/30 text-red-400'
-                      }`}
-                    >
-                      {pos.outcome.toUpperCase()}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {Math.round(pos.shares)} shares @ {Math.round(pos.cost)} tokens
-                    </span>
-                  </div>
-                  {isOpen && (
-                    <CancelBetButton
-                      positionId={pos.id}
-                      outcome={pos.outcome as 'yes' | 'no'}
-                      shares={pos.shares}
-                      cost={pos.cost}
-                      yesPool={pool.yesPool}
-                      noPool={pool.noPool}
-                    />
-                  )}
-                </div>
-              </div>
+              <PositionItem
+                key={pos.id}
+                pos={pos}
+                isOpen={isOpen}
+                yesPool={pool.yesPool}
+                noPool={pool.noPool}
+              />
             ))}
           </div>
         </div>
