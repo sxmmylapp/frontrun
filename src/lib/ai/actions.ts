@@ -20,7 +20,7 @@ export async function generateResolutionCriteria(
       messages: [
         {
           role: 'user',
-          content: `You are writing resolution criteria for a prediction market. Given the question below, write clear, objective resolution criteria in 1-3 sentences. Start with "Resolves YES if" and specify the exact conditions, sources, or evidence needed. Be specific about dates, thresholds, and authoritative sources when possible. Output ONLY the criteria text, nothing else.
+          content: `Write a short resolution rule for this yes/no bet. 1-2 sentences max. Use plain, casual language — no jargon. Start with "YES if" and keep it dead simple. Just state what needs to happen for YES to win. Output ONLY the rule, nothing else.
 
 Question: "${question.trim()}"`,
         },
