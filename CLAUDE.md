@@ -21,7 +21,7 @@ npx vitest run src/lib/amm/cpmm.test.ts  # Run single test file
 - **Next.js 16** (App Router, Server Components) + **React 19** + **TypeScript 5** (strict)
 - **Supabase** for PostgreSQL, Auth (SMS OTP via Twilio), Realtime subscriptions
 - **Tailwind CSS 4** + **shadcn/ui** (Radix primitives) + dark-only theme (oklch colors)
-- **Zod 4** for validation, **React Hook Form** for forms, **Zustand** for client state
+- **Zod 4** for validation, **React Hook Form** for forms
 - **decimal.js** for CPMM math (20-digit precision, no floating-point drift)
 - **Netlify** deployment with `@netlify/plugin-nextjs`
 - Path alias: `@/*` maps to `./src/*`
@@ -31,8 +31,8 @@ npx vitest run src/lib/amm/cpmm.test.ts  # Run single test file
 ### Route Groups & Middleware
 
 - `src/app/(auth)/` — Login/verify pages (unauthenticated only)
-- `src/app/(app)/` — All protected pages: feed, markets/[id], leaderboard, profile, admin/prizes, buy
-- `src/middleware.ts` — Auth routing: unauthed users → `/login`, authed users on auth pages → `/feed`, root `/` redirects based on auth state. Refreshes Supabase session before route checks.
+- `src/app/(app)/` — All protected pages: feed, markets/[id], leaderboard, profile, admin/{balances,bans,prizes}
+- `src/middleware.ts` — Auth routing: unauthed users → `/login`, authed users on auth pages → `/feed`, root `/` redirects based on auth state. Refreshes Supabase session before route checks. Banned users are signed out and redirected to `/banned`.
 
 ### API Routes
 
@@ -62,6 +62,7 @@ Core math in `src/lib/amm/cpmm.ts` — pure functions, no side effects. Formula:
 
 Betting, resolution, cancellation, and token purchases use **Supabase RPC stored procedures** to atomically update multiple tables in a single transaction. All RPCs use `SECURITY DEFINER` and row-level locks (`FOR UPDATE`) to prevent race conditions:
 - `place_bet` — Locks market, calculates CPMM shares, updates pools, inserts position, debits ledger
+- `cancel_bet` — Sells shares back into AMM pool at current market prices, credits user
 - `resolve_market` — Validates admin + market status, calculates payouts per share, credits winners
 - `cancel_market` — Refunds all bettors, sets status to 'cancelled'
 - `credit_token_purchase` — Idempotent (returns `already_processed` if double-called), credits ledger, marks purchase complete
@@ -95,7 +96,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  # Stripe publishable key (client-safe)
 
 ## Database
 
-Migrations in `supabase/migrations/` (00001–00006). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `leaderboard_snapshots`, `token_purchases`, `stripe_events`. Views: `user_balances`. RLS enabled on all tables. Generated types in `src/types/db.ts`. Atomic RPC: `place_bet`, `resolve_market`, `cancel_market`, `credit_token_purchase`.
+Migrations in `supabase/migrations/` (00001–00009). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `leaderboard_snapshots`, `token_purchases`, `stripe_events`. Views: `user_balances`. RLS enabled on all tables. Generated types in `src/types/db.ts`. Atomic RPCs: `place_bet`, `cancel_bet`, `resolve_market`, `cancel_market`, `credit_token_purchase`.
 
 ## Conventions
 
@@ -104,7 +105,7 @@ Migrations in `supabase/migrations/` (00001–00006). Key tables: `profiles`, `t
 - UI primitives live in `src/components/ui/` (shadcn), domain components in `src/components/<domain>/`
 - Zod is imported as `import { z } from 'zod/v4'` (v4 subpath export)
 - Phone validation: E.164 format (+1, 8-15 digits)
-- Token ledger reasons: `signup_bonus`, `bet_placed`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`
+- Token ledger reasons: `signup_bonus`, `bet_placed`, `bet_cancelled`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`
 - Admin authorization: check `profiles.is_admin` flag via admin client before privileged operations
 - New markets are seeded with 1000 tokens of initial liquidity (500 YES / 500 NO), house-funded
 - Version injected at build time via `NEXT_PUBLIC_APP_VERSION` from `package.json`
