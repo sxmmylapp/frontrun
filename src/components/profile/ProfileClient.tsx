@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -29,10 +29,11 @@ type ProfileClientProps = {
   displayName: string;
   isAdmin: boolean;
   positions: Position[];
+  balance: number;
   appVersion: string;
 };
 
-export function ProfileClient({ displayName, isAdmin, positions, appVersion }: ProfileClientProps) {
+export function ProfileClient({ displayName, isAdmin, positions, balance, appVersion }: ProfileClientProps) {
   const router = useRouter();
 
   const calcPnL = useCallback((pos: Position): { value: number; label: string } => {
@@ -51,6 +52,32 @@ export function ProfileClient({ displayName, isAdmin, positions, appVersion }: P
     }
     return { value: 0, label: 'Open' };
   }, []);
+
+  const stats = useMemo(() => {
+    let invested = 0;
+    let realizedPnL = 0;
+    let wins = 0;
+    let losses = 0;
+    let open = 0;
+
+    for (const pos of positions) {
+      if (pos.cancelled_at || !pos.market) continue;
+
+      if (pos.market.status === 'resolved') {
+        const won = pos.market.resolved_outcome === pos.outcome;
+        const payout = won ? pos.shares : 0;
+        realizedPnL += payout - pos.cost;
+        if (won) wins++;
+        else losses++;
+      } else if (pos.market.status === 'open' || pos.market.status === 'closed') {
+        invested += pos.cost;
+        open++;
+      }
+      // cancelled markets: cost refunded, not counted
+    }
+
+    return { invested, realizedPnL, wins, losses, open };
+  }, [positions]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -73,6 +100,34 @@ export function ProfileClient({ displayName, isAdmin, positions, appVersion }: P
         >
           Log out
         </Button>
+      </div>
+
+      {/* Portfolio stats */}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="rounded-sm border border-border bg-card p-3">
+          <div className="text-xs text-muted-foreground">Balance</div>
+          <div className="mt-1 text-lg font-bold">{Math.round(balance).toLocaleString()}</div>
+        </div>
+        <div className="rounded-sm border border-border bg-card p-3">
+          <div className="text-xs text-muted-foreground">Invested</div>
+          <div className="mt-1 text-lg font-bold">{Math.round(stats.invested).toLocaleString()}</div>
+        </div>
+        <div className="rounded-sm border border-border bg-card p-3">
+          <div className="text-xs text-muted-foreground">Realized P&L</div>
+          <div className={`mt-1 text-lg font-bold ${stats.realizedPnL > 0 ? 'text-green-400' : stats.realizedPnL < 0 ? 'text-red-400' : ''}`}>
+            {stats.realizedPnL >= 0 ? '+' : ''}{Math.round(stats.realizedPnL).toLocaleString()}
+          </div>
+        </div>
+        <div className="rounded-sm border border-border bg-card p-3">
+          <div className="text-xs text-muted-foreground">Record</div>
+          <div className="mt-1 text-lg font-bold">
+            <span className="text-green-400">{stats.wins}W</span>
+            {' · '}
+            <span className="text-red-400">{stats.losses}L</span>
+            {' · '}
+            <span className="text-muted-foreground">{stats.open}</span>
+          </div>
+        </div>
       </div>
 
       {/* Bet history */}
