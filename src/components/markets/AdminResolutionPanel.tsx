@@ -4,30 +4,43 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { resolveMarket, cancelMarket } from '@/lib/markets/admin-actions';
+import { resolveMarket, resolveMarketMc, cancelMarket } from '@/lib/markets/admin-actions';
+import { getOutcomeColor } from '@/lib/markets/outcome-colors';
 import { toast } from 'sonner';
+
+type MarketOutcome = {
+  id: string;
+  label: string;
+  sortOrder: number;
+};
 
 type Props = {
   marketId: string;
   resolutionCriteria: string;
   status: string;
+  marketType?: 'binary' | 'multiple_choice';
+  outcomes?: MarketOutcome[];
 };
 
 type Step = 'select' | 'confirm' | 'final';
 
-export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: Props) {
+export function AdminResolutionPanel({ marketId, resolutionCriteria, status, marketType = 'binary', outcomes }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
   const [action, setAction] = useState<'yes' | 'no' | 'cancel' | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<MarketOutcome | null>(null);
   const [step, setStep] = useState<Step>('select');
   const [typedConfirmation, setTypedConfirmation] = useState('');
 
   const canResolve = status === 'open' || status === 'closed';
   if (!canResolve) return null;
 
+  const isMultiChoice = marketType === 'multiple_choice';
+
   function getConfirmPhrase(): string {
     if (action === 'cancel') return 'CANCEL';
+    if (isMultiChoice && selectedOutcome) return `RESOLVE ${selectedOutcome.label.toUpperCase()}`;
     if (action === 'yes') return 'RESOLVE YES';
     if (action === 'no') return 'RESOLVE NO';
     return '';
@@ -35,6 +48,7 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
 
   function reset() {
     setAction(null);
+    setSelectedOutcome(null);
     setStep('select');
     setTypedConfirmation('');
   }
@@ -47,6 +61,21 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
 
     if (result.success) {
       toast.success(`Resolved ${outcome.toUpperCase()} — ${result.data.winnersPaid} tokens paid out`);
+      startTransition(() => { router.refresh(); });
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  async function handleResolveMc() {
+    if (!selectedOutcome) return;
+    setLoading(true);
+    const result = await resolveMarketMc({ marketId, outcomeId: selectedOutcome.id });
+    setLoading(false);
+    reset();
+
+    if (result.success) {
+      toast.success(`Resolved ${selectedOutcome.label.toUpperCase()} — ${result.data.winnersPaid} tokens paid out`);
       startTransition(() => { router.refresh(); });
     } else {
       toast.error(result.error);
@@ -69,7 +98,8 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
 
   function handleExecute() {
     if (action === 'cancel') handleCancel();
-    else if (action) handleResolve(action);
+    else if (isMultiChoice && selectedOutcome) handleResolveMc();
+    else if (action) handleResolve(action as 'yes' | 'no');
   }
 
   return (
@@ -84,24 +114,52 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
       {/* Step 1: Select action */}
       {step === 'select' && (
         <div className="mt-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="secondary"
-              className="rounded-sm border border-green-800/40 bg-green-950/20 text-green-400 hover:bg-green-950/40"
-              onClick={() => { setAction('yes'); setStep('confirm'); }}
-              disabled={loading}
-            >
-              Resolve YES
-            </Button>
-            <Button
-              variant="secondary"
-              className="rounded-sm border border-red-800/40 bg-red-950/20 text-red-400 hover:bg-red-950/40"
-              onClick={() => { setAction('no'); setStep('confirm'); }}
-              disabled={loading}
-            >
-              Resolve NO
-            </Button>
-          </div>
+          {isMultiChoice && outcomes ? (
+            <>
+              <p className="text-xs text-muted-foreground">Select winning outcome:</p>
+              <div className="flex flex-wrap gap-2">
+                {outcomes
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((o) => {
+                    const color = getOutcomeColor(o.sortOrder);
+                    return (
+                      <Button
+                        key={o.id}
+                        variant="secondary"
+                        className={`rounded-sm border ${color.border} ${color.bg} ${color.text} ${color.bgHover}`}
+                        onClick={() => {
+                          setSelectedOutcome(o);
+                          setAction(null);
+                          setStep('confirm');
+                        }}
+                        disabled={loading}
+                      >
+                        {o.label}
+                      </Button>
+                    );
+                  })}
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="secondary"
+                className="rounded-sm border border-green-800/40 bg-green-950/20 text-green-400 hover:bg-green-950/40"
+                onClick={() => { setAction('yes'); setStep('confirm'); }}
+                disabled={loading}
+              >
+                Resolve YES
+              </Button>
+              <Button
+                variant="secondary"
+                className="rounded-sm border border-red-800/40 bg-red-950/20 text-red-400 hover:bg-red-950/40"
+                onClick={() => { setAction('no'); setStep('confirm'); }}
+                disabled={loading}
+              >
+                Resolve NO
+              </Button>
+            </div>
+          )}
           <Button
             variant="secondary"
             className="w-full rounded-sm text-muted-foreground"
@@ -119,7 +177,9 @@ export function AdminResolutionPanel({ marketId, resolutionCriteria, status }: P
           <p className="text-sm font-medium text-yellow-400">
             {action === 'cancel'
               ? 'Cancel this market and refund all bettors?'
-              : `Resolve as ${action?.toUpperCase()}?`}
+              : isMultiChoice && selectedOutcome
+                ? `Resolve as ${selectedOutcome.label.toUpperCase()}?`
+                : `Resolve as ${action?.toUpperCase()}?`}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             This action cannot be undone.

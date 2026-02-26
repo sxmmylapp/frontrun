@@ -5,13 +5,23 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 
 export async function generateResolutionCriteria(
-  question: string
+  question: string,
+  marketType: 'binary' | 'multiple_choice' = 'binary',
+  outcomes?: string[]
 ): Promise<{ success: true; criteria: string } | { success: false; error: string }> {
   const ts = new Date().toISOString();
 
   if (!question || question.trim().length < 5) {
     return { success: false, error: 'Question too short' };
   }
+
+  const prompt = marketType === 'multiple_choice' && outcomes?.length
+    ? `Write a short resolution rule for this multiple choice bet. 1-2 sentences max. Use plain, casual language — no jargon. The outcomes are: ${outcomes.join(', ')}. State how the winning outcome will be determined. Output ONLY the rule, nothing else.
+
+Question: "${question.trim()}"`
+    : `Write a short resolution rule for this yes/no bet. 1-2 sentences max. Use plain, casual language — no jargon. Start with "YES if" and keep it dead simple. Just state what needs to happen for YES to win. Output ONLY the rule, nothing else.
+
+Question: "${question.trim()}"`;
 
   try {
     const response = await anthropic.messages.create({
@@ -20,9 +30,7 @@ export async function generateResolutionCriteria(
       messages: [
         {
           role: 'user',
-          content: `Write a short resolution rule for this yes/no bet. 1-2 sentences max. Use plain, casual language — no jargon. Start with "YES if" and keep it dead simple. Just state what needs to happen for YES to win. Output ONLY the rule, nothing else.
-
-Question: "${question.trim()}"`,
+          content: prompt,
         },
       ],
     });

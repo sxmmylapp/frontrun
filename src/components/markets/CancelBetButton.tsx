@@ -6,7 +6,13 @@ import Decimal from 'decimal.js';
 import { Button } from '@/components/ui/button';
 import { cancelBet } from '@/lib/markets/actions';
 import { previewSell } from '@/lib/amm/cpmm';
+import { previewMultiSell } from '@/lib/amm/cpmm-multi';
 import { toast } from 'sonner';
+
+type OutcomePool = {
+  outcomeId: string;
+  pool: number;
+};
 
 type CancelBetButtonProps = {
   positionId: string;
@@ -15,6 +21,9 @@ type CancelBetButtonProps = {
   cost: number;
   yesPool: number;
   noPool: number;
+  marketType?: 'binary' | 'multiple_choice';
+  outcomePools?: OutcomePool[];
+  outcomeId?: string;
 };
 
 export function CancelBetButton({
@@ -24,26 +33,42 @@ export function CancelBetButton({
   cost,
   yesPool,
   noPool,
+  marketType = 'binary',
+  outcomePools,
+  outcomeId,
 }: CancelBetButtonProps) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
 
+  const isMultiChoice = marketType === 'multiple_choice';
+
   const preview = useMemo(() => {
     try {
-      const pool = {
-        yesPool: new Decimal(yesPool),
-        noPool: new Decimal(noPool),
-      };
-      const result = previewSell(pool, outcome, new Decimal(shares));
-      const tokensBack = result.tokensReceived.toDecimalPlaces(0).toNumber();
-      const pnl = tokensBack - cost;
-      return { tokensBack, pnl };
+      if (isMultiChoice && outcomePools && outcomeId) {
+        const pools = new Map<string, Decimal>();
+        for (const op of outcomePools) {
+          pools.set(op.outcomeId, new Decimal(op.pool));
+        }
+        const result = previewMultiSell(pools, outcomeId, new Decimal(shares));
+        const tokensBack = result.tokensReceived.toDecimalPlaces(0).toNumber();
+        const pnl = tokensBack - cost;
+        return { tokensBack, pnl };
+      } else {
+        const pool = {
+          yesPool: new Decimal(yesPool),
+          noPool: new Decimal(noPool),
+        };
+        const result = previewSell(pool, outcome, new Decimal(shares));
+        const tokensBack = result.tokensReceived.toDecimalPlaces(0).toNumber();
+        const pnl = tokensBack - cost;
+        return { tokensBack, pnl };
+      }
     } catch {
       return null;
     }
-  }, [outcome, shares, cost, yesPool, noPool]);
+  }, [outcome, shares, cost, yesPool, noPool, isMultiChoice, outcomePools, outcomeId]);
 
   async function handleCancel() {
     setLoading(true);

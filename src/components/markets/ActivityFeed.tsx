@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
+import { getOutcomeColor } from '@/lib/markets/outcome-colors';
 
 export type ActivityItem = {
   id: string;
-  outcome: 'yes' | 'no';
+  outcome: string;
+  outcome_id?: string | null;
   shares: number;
   cost: number;
   createdAt: string;
@@ -14,14 +16,22 @@ export type ActivityItem = {
   displayName: string;
 };
 
+type MarketOutcome = {
+  id: string;
+  label: string;
+  sortOrder: number;
+};
+
 type ActivityFeedProps = {
   marketId: string;
   initialItems: ActivityItem[];
+  marketType?: 'binary' | 'multiple_choice';
+  outcomes?: MarketOutcome[];
 };
 
 const INITIAL_DISPLAY = 20;
 
-export function ActivityFeed({ marketId, initialItems }: ActivityFeedProps) {
+export function ActivityFeed({ marketId, initialItems, marketType = 'binary', outcomes }: ActivityFeedProps) {
   const [items, setItems] = useState(initialItems);
   const [showAll, setShowAll] = useState(false);
 
@@ -92,17 +102,24 @@ export function ActivityFeed({ marketId, initialItems }: ActivityFeedProps) {
                 <span className="shrink-0 rounded-sm bg-yellow-950/30 px-1.5 py-0.5 font-medium text-yellow-400">
                   SOLD
                 </span>
-              ) : (
-                <span
-                  className={`shrink-0 rounded-sm px-1.5 py-0.5 font-medium ${
-                    item.outcome === 'yes'
-                      ? 'bg-green-950/30 text-green-400'
-                      : 'bg-red-950/30 text-red-400'
-                  }`}
-                >
-                  {item.outcome.toUpperCase()}
-                </span>
-              )}
+              ) : (() => {
+                const isBinary = marketType === 'binary';
+                const outcomeObj = !isBinary && outcomes && item.outcome_id
+                  ? outcomes.find(o => o.id === item.outcome_id)
+                  : null;
+                const color = isBinary
+                  ? item.outcome === 'yes'
+                    ? { bg: 'bg-green-950/30', text: 'text-green-400' }
+                    : { bg: 'bg-red-950/30', text: 'text-red-400' }
+                  : outcomeObj
+                    ? getOutcomeColor(outcomeObj.sortOrder)
+                    : { bg: 'bg-secondary', text: 'text-foreground' };
+                return (
+                  <span className={`shrink-0 rounded-sm px-1.5 py-0.5 font-medium ${color.bg} ${color.text}`}>
+                    {isBinary ? item.outcome.toUpperCase() : item.outcome}
+                  </span>
+                );
+              })()}
             </div>
             <div className="shrink-0 ml-2 flex items-center gap-2 text-muted-foreground">
               <span>

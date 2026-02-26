@@ -24,6 +24,7 @@ export default async function MarketPage({
         resolved_at,
         created_at,
         creator_id,
+        market_type,
         market_pools ( yes_pool, no_pool )
       `)
       .eq('id', id)
@@ -35,19 +36,10 @@ export default async function MarketPage({
   if (!market) return notFound();
 
   const user = userResult.data.user;
+  const isMultiChoice = market.market_type === 'multiple_choice';
 
-  // Parallel fetch: admin check + positions (both need user, so run together)
-  let isAdmin = false;
-  let userPositions: {
-    id: string;
-    outcome: string;
-    shares: number;
-    cost: number;
-    cancelled_at: string | null;
-  }[] = [];
-
-  // Fetch all positions for probability history + activity feed (no auth needed)
-  const [allPositionsResult, activityResult] = await Promise.all([
+  // Parallel fetch: positions + activity + multi-choice data
+  const [allPositionsResult, activityResult, outcomesResult, poolsResult] = await Promise.all([
     supabase
       .from('positions')
       .select('outcome, shares, cost, created_at, cancelled_at')
@@ -56,9 +48,15 @@ export default async function MarketPage({
       .order('created_at', { ascending: true }),
     supabase
       .from('positions')
-      .select('id, outcome, shares, cost, created_at, cancelled_at, profiles!positions_user_id_fkey ( display_name )')
+      .select('id, outcome, outcome_id, shares, cost, created_at, cancelled_at, profiles!positions_user_id_fkey ( display_name )')
       .eq('market_id', id)
       .order('created_at', { ascending: false }),
+    isMultiChoice
+      ? supabase.from('market_outcomes').select('id, label, sort_order').eq('market_id', id).order('sort_order', { ascending: true })
+      : Promise.resolve({ data: null }),
+    isMultiChoice
+      ? supabase.from('outcome_pools').select('outcome_id, pool').eq('market_id', id)
+      : Promise.resolve({ data: null }),
   ]);
 
   const allPositions = allPositionsResult.data ?? [];
@@ -74,7 +72,8 @@ export default async function MarketPage({
     const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
     return {
       id: p.id,
-      outcome: p.outcome as 'yes' | 'no',
+      outcome: p.outcome,
+      outcome_id: p.outcome_id,
       shares: Number(p.shares),
       cost: Number(p.cost),
       createdAt: p.created_at!,
@@ -82,6 +81,33 @@ export default async function MarketPage({
       displayName: profile?.display_name ?? 'Anonymous',
     };
   });
+
+  // Multi-choice data
+  let marketOutcomes: { id: string; label: string; sortOrder: number }[] | undefined;
+  let outcomePools: { outcomeId: string; pool: number }[] | undefined;
+
+  if (isMultiChoice && outcomesResult.data && poolsResult.data) {
+    marketOutcomes = (outcomesResult.data as { id: string; label: string; sort_order: number }[]).map(o => ({
+      id: o.id,
+      label: o.label,
+      sortOrder: o.sort_order,
+    }));
+
+    outcomePools = (poolsResult.data as { outcome_id: string; pool: number }[]).map(p => ({
+      outcomeId: p.outcome_id,
+      pool: Number(p.pool),
+    }));
+  }
+
+  let isAdmin = false;
+  let userPositions: {
+    id: string;
+    outcome: string;
+    outcome_id: string | null;
+    shares: number;
+    cost: number;
+    cancelled_at: string | null;
+  }[] = [];
 
   if (user) {
     const [profileResult, positionsResult] = await Promise.all([
@@ -92,7 +118,7 @@ export default async function MarketPage({
         .single(),
       supabase
         .from('positions')
-        .select('id, outcome, shares, cost, cancelled_at')
+        .select('id, outcome, outcome_id, shares, cost, cancelled_at')
         .eq('user_id', user.id)
         .eq('market_id', id)
         .is('cancelled_at', null)
@@ -121,6 +147,7 @@ export default async function MarketPage({
         resolvedAt: market.resolved_at,
         createdAt: market.created_at ?? new Date().toISOString(),
         creatorId: market.creator_id,
+        marketType: (market.market_type ?? 'binary') as 'binary' | 'multiple_choice',
       }}
       initialPool={{
         yesPool: Number(pool?.yes_pool ?? 500),
@@ -132,6 +159,8 @@ export default async function MarketPage({
       positionHistory={positionHistory}
       volume={volume}
       activityFeed={activityFeed}
+      outcomes={marketOutcomes}
+      initialOutcomePools={outcomePools}
     />
   );
 }
