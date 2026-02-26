@@ -396,7 +396,7 @@ export function MarketDetail({
       </div>
 
       {/* Bet slip */}
-      {isOpen && currentUserId && currentUserId !== market.creatorId && (
+      {isOpen && currentUserId && (isAdmin || currentUserId !== market.creatorId) && (
         <Suspense fallback={<div className="mt-4 h-48 animate-pulse rounded-sm border border-border bg-card" />}>
           {isMultiChoice ? (
             <BetSlipMulti
@@ -421,7 +421,7 @@ export function MarketDetail({
           )}
         </Suspense>
       )}
-      {isOpen && currentUserId && currentUserId === market.creatorId && (
+      {isOpen && currentUserId && currentUserId === market.creatorId && !isAdmin && (
         <div className="mt-4 rounded-sm border border-yellow-800/40 bg-yellow-950/20 px-4 py-3 text-sm text-yellow-400">
           You created this market — you cannot place bets on it.
         </div>

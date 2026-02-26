@@ -221,10 +221,17 @@ export async function placeBet(input: {
       return { success: false, error: 'Market not found' };
     }
 
-    // Creator check
+    // Creator check (admins can bet on their own markets)
     if (marketData.creator_id === user.id) {
-      console.warn(`[${ts}] placeBet WARN: creator ${user.id} tried to bet on own market ${input.marketId}`);
-      return { success: false, error: 'Cannot bet on a market you created' };
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+      if (!profile?.is_admin) {
+        console.warn(`[${ts}] placeBet WARN: creator ${user.id} tried to bet on own market ${input.marketId}`);
+        return { success: false, error: 'Cannot bet on a market you created' };
+      }
     }
 
     const isMultiChoice = marketData.market_type === 'multiple_choice';
