@@ -154,7 +154,12 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
           <div className="flex justify-between">
             <span className="text-muted-foreground">Potential return</span>
             <span className="font-semibold text-foreground">
-              {numAmount > 0 ? `${(preview.maxPayout / numAmount).toFixed(2)}x` : '—'}
+              {(() => {
+                const prob = outcome === 'yes'
+                  ? noPool / (yesPool + noPool)
+                  : yesPool / (yesPool + noPool);
+                return prob > 0 ? `${(1 / prob).toFixed(2)}x` : '—';
+              })()}
             </span>
           </div>
           <div className="flex justify-between">
