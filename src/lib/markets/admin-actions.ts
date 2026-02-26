@@ -13,12 +13,17 @@ const resolveSchema = z.object({
   outcome: z.enum(['yes', 'no']),
 });
 
+const resolveMcSchema = z.object({
+  marketId: z.string().uuid(),
+  outcomeId: z.string().uuid(),
+});
+
 const cancelSchema = z.object({
   marketId: z.string().uuid(),
 });
 
 /**
- * Resolve a market — admin only.
+ * Resolve a binary market — admin only.
  * Calls the atomic resolve_market RPC which pays out all winning bettors.
  */
 export async function resolveMarket(input: {
@@ -69,8 +74,60 @@ export async function resolveMarket(input: {
 }
 
 /**
+ * Resolve a multiple choice market — admin only.
+ * Calls the atomic resolve_market_mc RPC which pays out all winning bettors.
+ */
+export async function resolveMarketMc(input: {
+  marketId: string;
+  outcomeId: string;
+}): Promise<ActionResult<{ winnersPaid: number }>> {
+  const ts = new Date().toISOString();
+
+  const parsed = resolveMcSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('resolve_market_mc', {
+      p_admin_id: user.id,
+      p_market_id: input.marketId,
+      p_outcome_id: input.outcomeId,
+    });
+
+    if (error) {
+      console.error(`[${ts}] resolveMarketMc ERROR: ${error.message}`);
+      return { success: false, error: 'Failed to resolve market' };
+    }
+
+    const result = data as Record<string, unknown>;
+    if (result.error) {
+      console.warn(`[${ts}] resolveMarketMc WARN: ${result.error}`);
+      return { success: false, error: result.error as string };
+    }
+
+    console.info(`[${ts}] resolveMarketMc INFO: market ${input.marketId} resolved as ${result.outcome}, paid ${result.winners_paid} tokens`);
+    return {
+      success: true,
+      data: { winnersPaid: result.winners_paid as number },
+    };
+  } catch (err) {
+    console.error(`[${ts}] resolveMarketMc ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
+/**
  * Cancel a market — admin only.
  * Calls the atomic cancel_market RPC which refunds all bettors.
+ * Works for both binary and multi-choice (refunds based on cost).
  */
 export async function cancelMarket(input: {
   marketId: string;

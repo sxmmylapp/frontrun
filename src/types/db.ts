@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       leaderboard_snapshots: {
@@ -59,6 +84,38 @@ export type Database = {
           },
         ]
       }
+      market_outcomes: {
+        Row: {
+          created_at: string | null
+          id: string
+          label: string
+          market_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          label: string
+          market_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          label?: string
+          market_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_outcomes_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_pools: {
         Row: {
           market_id: string
@@ -94,6 +151,7 @@ export type Database = {
           created_at: string | null
           creator_id: string
           id: string
+          market_type: string
           question: string
           resolution_criteria: string
           resolved_at: string | null
@@ -106,6 +164,7 @@ export type Database = {
           created_at?: string | null
           creator_id: string
           id?: string
+          market_type?: string
           question: string
           resolution_criteria: string
           resolved_at?: string | null
@@ -118,6 +177,7 @@ export type Database = {
           created_at?: string | null
           creator_id?: string
           id?: string
+          market_type?: string
           question?: string
           resolution_criteria?: string
           resolved_at?: string | null
@@ -135,6 +195,45 @@ export type Database = {
           },
         ]
       }
+      outcome_pools: {
+        Row: {
+          id: string
+          market_id: string
+          outcome_id: string
+          pool: number
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          market_id: string
+          outcome_id: string
+          pool: number
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          market_id?: string
+          outcome_id?: string
+          pool?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_pools_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outcome_pools_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "market_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       positions: {
         Row: {
           cancelled_at: string | null
@@ -143,6 +242,7 @@ export type Database = {
           id: string
           market_id: string
           outcome: string
+          outcome_id: string | null
           shares: number
           user_id: string
         }
@@ -153,6 +253,7 @@ export type Database = {
           id?: string
           market_id: string
           outcome: string
+          outcome_id?: string | null
           shares: number
           user_id: string
         }
@@ -163,6 +264,7 @@ export type Database = {
           id?: string
           market_id?: string
           outcome?: string
+          outcome_id?: string | null
           shares?: number
           user_id?: string
         }
@@ -172,6 +274,13 @@ export type Database = {
             columns: ["market_id"]
             isOneToOne: false
             referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "positions_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "market_outcomes"
             referencedColumns: ["id"]
           },
           {
@@ -380,6 +489,10 @@ export type Database = {
         Args: { p_position_id: string; p_user_id: string }
         Returns: Json
       }
+      cancel_bet_mc: {
+        Args: { p_position_id: string; p_user_id: string }
+        Returns: Json
+      }
       cancel_market: {
         Args: { p_admin_id: string; p_market_id: string }
         Returns: Json
@@ -402,8 +515,21 @@ export type Database = {
         }
         Returns: Json
       }
+      place_bet_mc: {
+        Args: {
+          p_amount: number
+          p_market_id: string
+          p_outcome_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       resolve_market: {
         Args: { p_admin_id: string; p_market_id: string; p_outcome: string }
+        Returns: Json
+      }
+      resolve_market_mc: {
+        Args: { p_admin_id: string; p_market_id: string; p_outcome_id: string }
         Returns: Json
       }
     }
@@ -534,6 +660,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
