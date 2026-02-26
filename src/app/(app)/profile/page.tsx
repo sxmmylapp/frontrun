@@ -12,7 +12,7 @@ export default async function ProfilePage() {
   const [profileResult, positionsResult, balanceResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('display_name, is_admin')
+      .select('display_name, is_admin, notify_new_markets, notify_market_resolved')
       .eq('id', user.id)
       .single(),
     supabase
@@ -57,6 +57,8 @@ export default async function ProfilePage() {
       isAdmin={profile?.is_admin === true}
       positions={positions}
       balance={Number(balanceResult.data?.balance ?? 0)}
+      notifyNewMarkets={profile?.notify_new_markets ?? true}
+      notifyMarketResolved={profile?.notify_market_resolved ?? true}
       appVersion={APP_VERSION}
     />
   );

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       leaderboard_snapshots: {
@@ -333,6 +308,8 @@ export type Database = {
           id: string
           is_admin: boolean | null
           is_banned: boolean
+          notify_market_resolved: boolean | null
+          notify_new_markets: boolean | null
           phone: string
           updated_at: string | null
         }
@@ -344,6 +321,8 @@ export type Database = {
           id: string
           is_admin?: boolean | null
           is_banned?: boolean
+          notify_market_resolved?: boolean | null
+          notify_new_markets?: boolean | null
           phone: string
           updated_at?: string | null
         }
@@ -355,10 +334,59 @@ export type Database = {
           id?: string
           is_admin?: boolean | null
           is_banned?: boolean
+          notify_market_resolved?: boolean | null
+          notify_new_markets?: boolean | null
           phone?: string
           updated_at?: string | null
         }
         Relationships: []
+      }
+      sms_log: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          event_type: string
+          id: string
+          market_id: string | null
+          message: string
+          phone: string
+          status: string
+          twilio_sid: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          event_type: string
+          id?: string
+          market_id?: string | null
+          message: string
+          phone: string
+          status?: string
+          twilio_sid?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          event_type?: string
+          id?: string
+          market_id?: string | null
+          message?: string
+          phone?: string
+          status?: string
+          twilio_sid?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_log_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stripe_events: {
         Row: {
@@ -660,9 +688,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
