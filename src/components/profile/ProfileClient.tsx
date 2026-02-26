@@ -14,6 +14,7 @@ type Position = {
   outcome: string;
   shares: number;
   cost: number;
+  payout: number | null;
   cancelled_at: string | null;
   market: {
     id: string;
@@ -49,10 +50,13 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, notify
       return { value: 0, label: 'Sold' };
     }
     if (pos.market.status === 'resolved') {
+      if (pos.payout != null) {
+        const pnl = pos.payout - pos.cost;
+        return { value: pnl, label: `${pnl >= 0 ? '+' : ''}${Math.round(pnl)}` };
+      }
+      // Fallback for positions without payout column (shouldn't happen after migration)
       const won = pos.market.resolved_outcome === pos.outcome;
-      const payout = won ? pos.shares : 0;
-      const pnl = payout - pos.cost;
-      return { value: pnl, label: `${pnl >= 0 ? '+' : ''}${Math.round(pnl)}` };
+      return { value: won ? 0 : -pos.cost, label: won ? '?' : `${-Math.round(pos.cost)}` };
     }
     if (pos.market.status === 'cancelled') {
       return { value: 0, label: '0 (refunded)' };
@@ -72,7 +76,7 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, notify
 
       if (pos.market.status === 'resolved') {
         const won = pos.market.resolved_outcome === pos.outcome;
-        const payout = won ? pos.shares : 0;
+        const payout = pos.payout ?? (won ? pos.shares : 0);
         realizedPnL += payout - pos.cost;
         if (won) wins++;
         else losses++;
