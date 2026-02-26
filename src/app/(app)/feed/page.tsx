@@ -149,6 +149,9 @@ export default async function FeedPage() {
                       {displayProb}%
                     </span>
                     <span className="text-xs text-muted-foreground">{displayLabel}</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {displayProb > 0 ? `${(100 / displayProb).toFixed(1)}x` : '—'}
+                    </span>
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
                     {volume > 0 && (

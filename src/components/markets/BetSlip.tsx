@@ -152,6 +152,12 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
       {preview && numAmount > 0 && (
         <div className="mt-3 space-y-1 rounded-sm bg-secondary/50 p-3 text-xs">
           <div className="flex justify-between">
+            <span className="text-muted-foreground">Potential return</span>
+            <span className="font-semibold text-foreground">
+              {numAmount > 0 ? `${(preview.maxPayout / numAmount).toFixed(2)}x` : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-muted-foreground">Shares received</span>
             <span>{preview.shares}</span>
           </div>

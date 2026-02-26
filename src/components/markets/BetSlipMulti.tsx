@@ -163,6 +163,12 @@ export function BetSlipMulti({ marketId, outcomes, userPositionCost }: BetSlipMu
       {preview && numAmount > 0 && selectedOutcome && (
         <div className="mt-3 space-y-1 rounded-sm bg-secondary/50 p-3 text-xs">
           <div className="flex justify-between">
+            <span className="text-muted-foreground">Potential return</span>
+            <span className="font-semibold text-foreground">
+              {preview.impliedProb > 0 ? `${(100 / preview.impliedProb).toFixed(2)}x` : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-muted-foreground">Shares received</span>
             <span>{preview.shares}</span>
           </div>

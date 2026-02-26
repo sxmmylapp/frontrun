@@ -308,13 +308,19 @@ export function MarketDetail({
         <div className="mt-4 space-y-2">
           {sortedOutcomes.map((o) => {
             const color = getOutcomeColor(o.sortOrder);
+            const multiplier = o.probability > 0 ? (100 / o.probability) : 0;
             return (
               <div key={o.id} className={`rounded-sm border ${color.border} p-3`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm font-medium ${color.text}`}>{o.label}</span>
-                  <span className={`text-lg font-bold ${color.text}`}>
-                    {Math.round(o.probability)}%
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {multiplier >= 1.01 ? `${multiplier.toFixed(1)}x` : '—'}
+                    </span>
+                    <span className={`text-lg font-bold ${color.text}`}>
+                      {Math.round(o.probability)}%
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-1.5 h-1.5 w-full rounded-full bg-secondary/50">
                   <div
@@ -336,13 +342,23 @@ export function MarketDetail({
             <div className="text-2xl font-bold text-green-400">
               {Math.round(yesProb)}%
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">YES</div>
+            <div className="mt-1 flex items-center justify-center gap-1.5">
+              <span className="text-xs text-muted-foreground">YES</span>
+              <span className="text-xs font-medium text-green-400/70">
+                {yesProb > 0 ? `${(100 / yesProb).toFixed(1)}x` : '—'}
+              </span>
+            </div>
           </div>
           <div className="rounded-sm border border-red-800/40 bg-red-950/20 p-4 text-center">
             <div className="text-2xl font-bold text-red-400">
               {Math.round(noProb)}%
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">NO</div>
+            <div className="mt-1 flex items-center justify-center gap-1.5">
+              <span className="text-xs text-muted-foreground">NO</span>
+              <span className="text-xs font-medium text-red-400/70">
+                {noProb > 0 ? `${(100 / noProb).toFixed(1)}x` : '—'}
+              </span>
+            </div>
           </div>
         </div>
       )}
