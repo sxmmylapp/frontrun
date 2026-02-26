@@ -20,18 +20,23 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
   const [outcomes, setOutcomes] = useState<string[]>(['', '']);
 
   const handleGenerateCriteria = useCallback(
-    async (q: string) => {
-      if (!q || q.trim().length < 5 || criteriaEdited) return;
+    async (q: string, force = false) => {
+      if (!q || q.trim().length < 5 || (!force && criteriaEdited)) return;
 
-      setGenerating(true);
       const outcomeLabels = marketType === 'multiple_choice'
         ? outcomes.filter(o => o.trim().length > 0)
         : undefined;
+
+      // For MC, wait until at least 2 outcomes are filled
+      if (marketType === 'multiple_choice' && (!outcomeLabels || outcomeLabels.length < 2)) return;
+
+      setGenerating(true);
       const result = await generateResolutionCriteria(q, marketType, outcomeLabels);
       setGenerating(false);
 
       if (result.success) {
         setCriteria(result.criteria);
+        setCriteriaEdited(false);
       }
     },
     [criteriaEdited, marketType, outcomes]
@@ -153,6 +158,7 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
                       placeholder={`Outcome ${i + 1}`}
                       value={outcome}
                       onChange={(e) => updateOutcome(i, e.target.value)}
+                      onBlur={() => handleGenerateCriteria(question)}
                       className="rounded-sm"
                     />
                     {outcomes.length > 2 && (
@@ -184,10 +190,20 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
               <label className="text-xs font-medium text-muted-foreground">
                 Resolution Criteria
               </label>
-              {generating && (
+              {generating ? (
                 <span className="text-xs text-muted-foreground animate-pulse">
                   Generating...
                 </span>
+              ) : (
+                question.trim().length >= 5 && (
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateCriteria(question, true)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Regenerate
+                  </button>
+                )
               )}
             </div>
             <textarea
