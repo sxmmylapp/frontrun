@@ -22,6 +22,7 @@ export default async function ProfilePage() {
         outcome,
         shares,
         cost,
+        payout,
         created_at,
         cancelled_at,
         markets ( id, question, status, resolved_outcome, market_pools ( yes_pool, no_pool ) )
@@ -45,6 +46,7 @@ export default async function ProfilePage() {
       outcome: p.outcome,
       shares: p.shares,
       cost: p.cost,
+      payout: p.payout != null ? Number(p.payout) : null,
       cancelled_at: p.cancelled_at,
       market: market ? { id: market.id, question: market.question, status: market.status, resolved_outcome: market.resolved_outcome } : null,
       pool: pool ? { yes_pool: Number(pool.yes_pool), no_pool: Number(pool.no_pool) } : null,
