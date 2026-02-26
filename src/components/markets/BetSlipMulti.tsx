@@ -6,7 +6,7 @@ import Decimal from 'decimal.js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { placeBet } from '@/lib/markets/actions';
-import { previewMultiTrade } from '@/lib/amm/cpmm-multi';
+import { buyShares } from '@/lib/amm/cpmm-multi';
 import { useUserBalance } from '@/hooks/useUserBalance';
 import { getOutcomeColor } from '@/lib/markets/outcome-colors';
 import { toast } from 'sonner';
@@ -22,9 +22,10 @@ type BetSlipMultiProps = {
   marketId: string;
   outcomes: OutcomeOption[];
   userPositionCost: number;
+  totalSharesByOutcome?: Record<string, number>;
 };
 
-export function BetSlipMulti({ marketId, outcomes, userPositionCost }: BetSlipMultiProps) {
+export function BetSlipMulti({ marketId, outcomes, userPositionCost, totalSharesByOutcome = {} }: BetSlipMultiProps) {
   const router = useRouter();
   const { balance } = useUserBalance();
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
@@ -51,24 +52,34 @@ export function BetSlipMulti({ marketId, outcomes, userPositionCost }: BetSlipMu
       for (const o of outcomes) {
         pools.set(o.id, new Decimal(o.pool));
       }
-      const result = previewMultiTrade(pools, selectedOutcome, new Decimal(numAmount));
-      // Total pool after trade for max payout estimate
-      let newTotal = new Decimal(0);
-      for (const p of result.newProbabilities.keys()) {
-        // We need newPools from buyShares for accurate total
-        // Since previewMultiTrade only returns probabilities, calculate from shares
+      const result = buyShares(pools, selectedOutcome, new Decimal(numAmount));
+      const shares = result.sharesReceived.toDecimalPlaces(2).toNumber();
+
+      // Total pool after trade
+      let newTotalPool = 0;
+      for (const p of result.newPools.values()) {
+        newTotalPool += p.toNumber();
       }
-      const selectedLabel = outcomes.find(o => o.id === selectedOutcome)?.label ?? '';
+
+      // Realistic payout: shares * (totalPool / totalWinningShares)
+      const existingWinningShares = totalSharesByOutcome[selectedOutcome] ?? 0;
+      const totalWinningShares = existingWinningShares + shares;
+      const estPayout = totalWinningShares > 0
+        ? shares * (newTotalPool / totalWinningShares)
+        : 0;
+      const multiplier = numAmount > 0 ? estPayout / numAmount : 0;
+
       const impliedProb = result.newProbabilities.get(selectedOutcome);
       return {
-        shares: result.sharesReceived.toDecimalPlaces(0).toNumber(),
+        shares: Math.round(shares),
+        estPayout: Math.round(estPayout),
+        multiplier,
         impliedProb: impliedProb ? impliedProb.mul(100).toDecimalPlaces(0).toNumber() : 0,
-        selectedLabel,
       };
     } catch {
       return null;
     }
-  }, [numAmount, selectedOutcome, outcomes, maxBet]);
+  }, [numAmount, selectedOutcome, outcomes, maxBet, totalSharesByOutcome]);
 
   async function handleBet() {
     if (!selectedOutcome || numAmount <= 0 || numAmount > balance || numAmount > maxBet || numAmount > remaining) return;
@@ -165,8 +176,12 @@ export function BetSlipMulti({ marketId, outcomes, userPositionCost }: BetSlipMu
           <div className="flex justify-between">
             <span className="text-muted-foreground">Potential return</span>
             <span className="font-semibold text-foreground">
-              {preview.impliedProb > 0 ? `${(100 / preview.impliedProb).toFixed(2)}x` : '—'}
+              {preview.multiplier > 0 ? `${preview.multiplier.toFixed(2)}x` : '—'}
             </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Est. payout</span>
+            <span className="font-medium">{preview.estPayout.toLocaleString()} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Shares received</span>

@@ -15,9 +15,10 @@ type BetSlipProps = {
   yesPool: number;
   noPool: number;
   userPositionCost: number;
+  totalSharesByOutcome?: Record<string, number>;
 };
 
-export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlipProps) {
+export function BetSlip({ marketId, yesPool, noPool, userPositionCost, totalSharesByOutcome = {} }: BetSlipProps) {
   const router = useRouter();
   const { balance } = useUserBalance();
   const [outcome, setOutcome] = useState<'yes' | 'no'>('yes');
@@ -46,19 +47,27 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
         noPool: new Decimal(noPool),
       };
       const result = previewTrade(pool, outcome, new Decimal(numAmount));
-      const tradeResult = outcome === 'yes'
-        ? { newYes: new Decimal(yesPool).sub(result.sharesReceived), newNo: new Decimal(noPool).add(numAmount) }
-        : { newYes: new Decimal(yesPool).add(numAmount), newNo: new Decimal(noPool).sub(result.sharesReceived) };
-      const maxPayout = tradeResult.newYes.add(tradeResult.newNo).toDecimalPlaces(0).toNumber();
+      const shares = result.sharesReceived.toDecimalPlaces(2).toNumber();
+
+      // Realistic payout estimate: shares * (totalPool / totalWinningShares)
+      const newTotalPool = yesPool + noPool + numAmount - shares;
+      const existingWinningShares = totalSharesByOutcome[outcome] ?? 0;
+      const totalWinningShares = existingWinningShares + shares;
+      const estPayout = totalWinningShares > 0
+        ? shares * (newTotalPool / totalWinningShares)
+        : 0;
+      const multiplier = numAmount > 0 ? estPayout / numAmount : 0;
+
       return {
-        shares: result.sharesReceived.toDecimalPlaces(0).toNumber(),
-        maxPayout,
+        shares: Math.round(shares),
+        estPayout: Math.round(estPayout),
+        multiplier,
         impliedProb: result.impliedProbability.mul(100).toDecimalPlaces(0).toNumber(),
       };
     } catch {
       return null;
     }
-  }, [numAmount, outcome, yesPool, noPool, maxBet]);
+  }, [numAmount, outcome, yesPool, noPool, maxBet, totalSharesByOutcome]);
 
   async function handleBet() {
     if (numAmount <= 0 || numAmount > balance || numAmount > maxBet || numAmount > remaining) return;
@@ -154,21 +163,16 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost }: BetSlip
           <div className="flex justify-between">
             <span className="text-muted-foreground">Potential return</span>
             <span className="font-semibold text-foreground">
-              {(() => {
-                const prob = outcome === 'yes'
-                  ? noPool / (yesPool + noPool)
-                  : yesPool / (yesPool + noPool);
-                return prob > 0 ? `${(1 / prob).toFixed(2)}x` : '—';
-              })()}
+              {preview.multiplier > 0 ? `${preview.multiplier.toFixed(2)}x` : '—'}
             </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Est. payout</span>
+            <span className="font-medium">{preview.estPayout.toLocaleString()} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Shares received</span>
             <span>{preview.shares}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Max payout (if sole winner)</span>
-            <span className="font-medium">{preview.maxPayout} tokens</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">New probability</span>

@@ -42,7 +42,7 @@ export default async function MarketPage({
   const [allPositionsResult, activityResult, outcomesResult, poolsResult] = await Promise.all([
     supabase
       .from('positions')
-      .select('outcome, shares, cost, created_at, cancelled_at')
+      .select('outcome, outcome_id, shares, cost, created_at, cancelled_at')
       .eq('market_id', id)
       .is('cancelled_at', null)
       .order('created_at', { ascending: true }),
@@ -67,6 +67,14 @@ export default async function MarketPage({
     createdAt: p.created_at!,
   }));
   const volume = allPositions.reduce((sum, p) => sum + Number(p.cost), 0);
+
+  // Aggregate total outstanding shares per outcome for realistic payout estimates
+  // Binary: keyed by 'yes'/'no'. Multi-choice: keyed by outcome_id (UUID).
+  const totalSharesByOutcome: Record<string, number> = {};
+  for (const p of allPositions) {
+    const key = (isMultiChoice && p.outcome_id) ? p.outcome_id : p.outcome;
+    totalSharesByOutcome[key] = (totalSharesByOutcome[key] ?? 0) + Number(p.shares);
+  }
 
   const activityFeed = (activityResult.data ?? []).map((p) => {
     const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
@@ -161,6 +169,7 @@ export default async function MarketPage({
       activityFeed={activityFeed}
       outcomes={marketOutcomes}
       initialOutcomePools={outcomePools}
+      totalSharesByOutcome={totalSharesByOutcome}
     />
   );
 }
