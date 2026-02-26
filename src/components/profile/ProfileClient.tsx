@@ -1,11 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { CancelBetButton } from '@/components/markets/CancelBetButton';
+import { updateNotificationPreferences } from '@/lib/notifications/actions';
 
 type Position = {
   id: string;
@@ -30,11 +32,16 @@ type ProfileClientProps = {
   isAdmin: boolean;
   positions: Position[];
   balance: number;
+  notifyNewMarkets: boolean;
+  notifyMarketResolved: boolean;
   appVersion: string;
 };
 
-export function ProfileClient({ displayName, isAdmin, positions, balance, appVersion }: ProfileClientProps) {
+export function ProfileClient({ displayName, isAdmin, positions, balance, notifyNewMarkets, notifyMarketResolved, appVersion }: ProfileClientProps) {
   const router = useRouter();
+  const [newMarkets, setNewMarkets] = useState(notifyNewMarkets);
+  const [marketResolved, setMarketResolved] = useState(notifyMarketResolved);
+  const [isPending, startTransition] = useTransition();
 
   const calcPnL = useCallback((pos: Position): { value: number; label: string } => {
     if (!pos.market) return { value: 0, label: '-' };
@@ -126,6 +133,57 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, appVer
             <span className="text-red-400">{stats.losses}L</span>
             {' · '}
             <span className="text-muted-foreground">{stats.open}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Notification preferences */}
+      <div className="mt-6">
+        <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+          Notifications
+        </h3>
+        <div className="space-y-3 rounded-sm border border-border bg-card p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm">New markets</div>
+              <div className="text-xs text-muted-foreground">SMS when a new market is posted</div>
+            </div>
+            <Switch
+              checked={newMarkets}
+              disabled={isPending}
+              onCheckedChange={(checked) => {
+                const prev = newMarkets;
+                setNewMarkets(checked);
+                startTransition(async () => {
+                  const result = await updateNotificationPreferences({
+                    notifyNewMarkets: checked,
+                    notifyMarketResolved: marketResolved,
+                  });
+                  if (!result.success) setNewMarkets(prev);
+                });
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm">Market results</div>
+              <div className="text-xs text-muted-foreground">SMS when a market you bet on resolves</div>
+            </div>
+            <Switch
+              checked={marketResolved}
+              disabled={isPending}
+              onCheckedChange={(checked) => {
+                const prev = marketResolved;
+                setMarketResolved(checked);
+                startTransition(async () => {
+                  const result = await updateNotificationPreferences({
+                    notifyNewMarkets: newMarkets,
+                    notifyMarketResolved: checked,
+                  });
+                  if (!result.success) setMarketResolved(prev);
+                });
+              }}
+            />
           </div>
         </div>
       </div>

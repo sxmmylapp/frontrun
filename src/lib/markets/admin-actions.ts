@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod/v4';
+import { notifyMarketResolved } from '@/lib/notifications/sms';
 
 type ActionResult<T = undefined> =
   | { success: true; data: T }
@@ -63,6 +64,20 @@ export async function resolveMarket(input: {
     }
 
     console.info(`[${ts}] resolveMarket INFO: market ${input.marketId} resolved as ${input.outcome}, paid ${result.winners_paid} tokens`);
+
+    // Fire-and-forget SMS notification
+    (async () => {
+      const { data: m } = await admin.from('markets').select('question').eq('id', input.marketId).single();
+      if (m) {
+        await notifyMarketResolved({
+          marketId: input.marketId,
+          question: m.question,
+          resolvedOutcome: input.outcome,
+          marketType: 'binary',
+        });
+      }
+    })().catch(console.error);
+
     return {
       success: true,
       data: { winnersPaid: result.winners_paid as number },
@@ -114,6 +129,21 @@ export async function resolveMarketMc(input: {
     }
 
     console.info(`[${ts}] resolveMarketMc INFO: market ${input.marketId} resolved as ${result.outcome}, paid ${result.winners_paid} tokens`);
+
+    // Fire-and-forget SMS notification
+    (async () => {
+      const { data: m } = await admin.from('markets').select('question').eq('id', input.marketId).single();
+      if (m) {
+        await notifyMarketResolved({
+          marketId: input.marketId,
+          question: m.question,
+          resolvedOutcome: result.outcome as string,
+          marketType: 'multiple_choice',
+          winningOutcomeId: input.outcomeId,
+        });
+      }
+    })().catch(console.error);
+
     return {
       success: true,
       data: { winnersPaid: result.winners_paid as number },

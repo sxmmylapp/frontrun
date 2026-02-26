@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod/v4';
+import { notifyNewMarket } from '@/lib/notifications/sms';
 
 const createMarketSchema = z.object({
   question: z.string().min(5, 'Question must be at least 5 characters'),
@@ -171,6 +172,10 @@ export async function createMarket(input: {
     }
 
     console.info(`[${ts}] createMarket INFO: ${marketType ?? 'binary'} market ${market.id} created by ${user.id}`);
+
+    // Fire-and-forget SMS notification
+    notifyNewMarket({ marketId: market.id, question }).catch(console.error);
+
     return { success: true, data: { marketId: market.id } };
   } catch (err) {
     console.error(`[${ts}] createMarket ERROR: unexpected -`, err);
