@@ -69,7 +69,7 @@ export default function AdminNotificationsPage() {
     const result = await createNotification({
       title: title.trim() || undefined,
       message: message.trim(),
-      maxViews,
+      maxViews: Math.max(1, maxViews),
     });
     setSending(false);
 
@@ -106,7 +106,7 @@ export default function AdminNotificationsPage() {
       id,
       title: editTitle.trim() || undefined,
       message: editMessage.trim(),
-      maxViews: editMaxViews,
+      maxViews: Math.max(1, editMaxViews),
     });
     setActing(null);
 
@@ -177,8 +177,9 @@ export default function AdminNotificationsPage() {
             type="number"
             min={1}
             max={100}
-            value={maxViews}
-            onChange={(e) => setMaxViews(Math.max(1, parseInt(e.target.value) || 1))}
+            value={maxViews || ''}
+            onChange={(e) => setMaxViews(parseInt(e.target.value) || 0)}
+            onBlur={() => { if (maxViews < 1) setMaxViews(1); }}
             className="w-24 rounded-sm"
           />
           <p className="text-xs text-muted-foreground">
@@ -225,8 +226,9 @@ export default function AdminNotificationsPage() {
                         type="number"
                         min={1}
                         max={100}
-                        value={editMaxViews}
-                        onChange={(e) => setEditMaxViews(Math.max(1, parseInt(e.target.value) || 1))}
+                        value={editMaxViews || ''}
+                        onChange={(e) => setEditMaxViews(parseInt(e.target.value) || 0)}
+                        onBlur={() => { if (editMaxViews < 1) setEditMaxViews(1); }}
                         className="w-20 rounded-sm text-sm"
                       />
                     </div>
