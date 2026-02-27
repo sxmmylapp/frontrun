@@ -13,21 +13,28 @@ export default async function LeaderboardPage() {
   // Use admin client to query across all users (RLS on profiles only allows own)
   const admin = createAdminClient();
 
-  // Parallel fetch: balances + current user auth
+  // Parallel fetch: balances + bot IDs + current user auth
   const supabase = await createClient();
-  const [balancesResult, userResult] = await Promise.all([
+  const [balancesResult, botsResult, userResult] = await Promise.all([
     admin
       .from('user_balances')
       .select('user_id, balance')
       .order('balance', { ascending: false })
-      .limit(100),
+      .limit(200), // Fetch extra to account for filtered bots
+    admin
+      .from('profiles')
+      .select('id')
+      .eq('is_bot', true),
     supabase.auth.getUser(),
   ]);
 
-  const balances = balancesResult.data;
+  const botIds = new Set((botsResult.data ?? []).map((b) => b.id));
+  const balances = (balancesResult.data ?? [])
+    .filter((b) => b.user_id && !botIds.has(b.user_id))
+    .slice(0, 100);
   const user = userResult.data.user;
 
-  if (!balances || balances.length === 0) {
+  if (balances.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
         <h2 className="text-xl font-semibold">Leaderboard</h2>
