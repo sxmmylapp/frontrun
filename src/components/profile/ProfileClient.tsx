@@ -131,6 +131,11 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, notify
               Ban Users <span aria-hidden="true">&rarr;</span>
             </Link>
           </Button>
+          <Button asChild variant="outline" size="lg" className="w-full justify-between">
+            <Link href="/admin/notifications">
+              Broadcast Notification <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </Button>
         </div>
       )}
 
