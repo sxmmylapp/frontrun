@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { CancelBetButton } from '@/components/markets/CancelBetButton';
 import { updateNotificationPreferences } from '@/lib/notifications/actions';
+import { toast } from 'sonner';
 
 type Position = {
   id: string;
@@ -35,10 +36,12 @@ type ProfileClientProps = {
   balance: number;
   notifyNewMarkets: boolean;
   notifyMarketResolved: boolean;
+  referralCode: string;
+  referralCount: number;
   appVersion: string;
 };
 
-export function ProfileClient({ displayName, isAdmin, positions, balance, notifyNewMarkets, notifyMarketResolved, appVersion }: ProfileClientProps) {
+export function ProfileClient({ displayName, isAdmin, positions, balance, notifyNewMarkets, notifyMarketResolved, referralCode, referralCount, appVersion }: ProfileClientProps) {
   const router = useRouter();
   const [newMarkets, setNewMarkets] = useState(notifyNewMarkets);
   const [marketResolved, setMarketResolved] = useState(notifyMarketResolved);
@@ -166,6 +169,67 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, notify
           </div>
         </div>
       </div>
+
+      {/* Refer Friends */}
+      {referralCode && (
+        <div className="mt-6">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+            Refer Friends
+          </h3>
+          <div className="space-y-3 rounded-sm border border-border bg-card p-3">
+            <div>
+              <div className="text-xs text-muted-foreground">Your referral link</div>
+              <div className="mt-1 flex items-center gap-2">
+                <code className="flex-1 truncate rounded-sm bg-muted px-2 py-1.5 text-xs">
+                  frontrun.bet/?ref={referralCode}
+                </code>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0 rounded-sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(`https://frontrun.bet/?ref=${referralCode}`);
+                      toast.success('Link copied!');
+                    } catch {
+                      toast.error('Failed to copy');
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0 rounded-sm"
+                    onClick={async () => {
+                      try {
+                        await navigator.share({
+                          title: 'Join Frontrun',
+                          text: 'Bet on what happens next!',
+                          url: `https://frontrun.bet/?ref=${referralCode}`,
+                        });
+                      } catch {
+                        // User cancelled share — ignore
+                      }
+                    }}
+                  >
+                    Share
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">{referralCount}</span>{' '}
+              <span className="text-muted-foreground">
+                {referralCount === 1 ? 'friend' : 'friends'} referred
+                {referralCount > 0 && ` (+${(referralCount * 1000).toLocaleString()} tokens earned)`}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification preferences */}
       <div className="mt-6">

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       bot_trade_log: {
@@ -468,6 +443,8 @@ export type Database = {
           notify_market_resolved: boolean | null
           notify_new_markets: boolean | null
           phone: string
+          referral_code: string
+          referred_by: string | null
           updated_at: string | null
         }
         Insert: {
@@ -482,6 +459,8 @@ export type Database = {
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone: string
+          referral_code: string
+          referred_by?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -496,9 +475,19 @@ export type Database = {
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone?: string
+          referral_code?: string
+          referred_by?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sms_log: {
         Row: {
@@ -847,9 +836,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

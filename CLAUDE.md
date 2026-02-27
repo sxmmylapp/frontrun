@@ -136,7 +136,7 @@ Migrations in `supabase/migrations/` (00001–00016). Key tables: `profiles`, `t
 - UI primitives live in `src/components/ui/` (shadcn), domain components in `src/components/<domain>/`
 - Zod is imported as `import { z } from 'zod/v4'` (v4 subpath export)
 - Phone validation: E.164 format (+1, 8-15 digits)
-- Token ledger reasons: `signup_bonus`, `bet_placed`, `bet_cancelled`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`, `bot_seed`
+- Token ledger reasons: `signup_bonus`, `bet_placed`, `bet_cancelled`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`, `bot_seed`, `referral_bonus`
 - Admin authorization: check `profiles.is_admin` flag via admin client before privileged operations
 - New markets are seeded with 5000 tokens of initial liquidity (2500 YES / 2500 NO), house-funded
 - Version bumping is mandatory. Every code change that affects functionality, UI, or behavior must include a version bump (patch for fixes, minor for features). Source of truth: `package.json` version field, injected at build time via `NEXT_PUBLIC_APP_VERSION`, displayed on the profile page via `src/lib/version.ts`

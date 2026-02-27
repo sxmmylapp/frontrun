@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { ProfileClient } from '@/components/profile/ProfileClient';
 import { APP_VERSION } from '@/lib/version';
@@ -8,11 +9,13 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Parallel fetch: profile + positions + balance at the same time
-  const [profileResult, positionsResult, balanceResult] = await Promise.all([
+  const admin = createAdminClient();
+
+  // Parallel fetch: profile + positions + balance + referral count at the same time
+  const [profileResult, positionsResult, balanceResult, referralCountResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('display_name, is_admin, notify_new_markets, notify_market_resolved')
+      .select('display_name, is_admin, notify_new_markets, notify_market_resolved, referral_code')
       .eq('id', user.id)
       .single(),
     supabase
@@ -34,6 +37,10 @@ export default async function ProfilePage() {
       .select('balance')
       .eq('user_id', user.id)
       .single(),
+    admin
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('referred_by', user.id),
   ]);
 
   const profile = profileResult.data;
@@ -61,6 +68,8 @@ export default async function ProfilePage() {
       balance={Number(balanceResult.data?.balance ?? 0)}
       notifyNewMarkets={profile?.notify_new_markets ?? true}
       notifyMarketResolved={profile?.notify_market_resolved ?? true}
+      referralCode={profile?.referral_code ?? ''}
+      referralCount={referralCountResult.count ?? 0}
       appVersion={APP_VERSION}
     />
   );

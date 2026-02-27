@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { verifyOtp, sendOtp } from '@/lib/auth/actions';
+import { processReferral } from '@/lib/referrals/actions';
 import { toast } from 'sonner';
 
 function VerifyForm() {
@@ -42,6 +43,12 @@ function VerifyForm() {
       setLoading(false);
 
       if (result.success) {
+        // Process referral code from cookie (fire-and-forget)
+        const refMatch = document.cookie.match(/(?:^|;\s*)frontrun_ref=([A-F0-9]{8})/);
+        if (refMatch) {
+          processReferral(refMatch[1]).catch(() => {});
+          document.cookie = 'frontrun_ref=; max-age=0; path=/';
+        }
         router.push('/feed');
       } else {
         toast.error(result.error);

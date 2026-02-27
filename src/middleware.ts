@@ -37,6 +37,17 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Capture referral code from ?ref= param and set cookie (before auth redirect)
+  const refCode = request.nextUrl.searchParams.get('ref');
+  if (refCode && !user) {
+    supabaseResponse.cookies.set('frontrun_ref', refCode.toUpperCase(), {
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+    });
+  }
+
   // Fast path: unauthenticated users — no need to check ban status
   if (!user) {
     if (protectedPrefixes.some((p) => pathname.startsWith(p))) {
