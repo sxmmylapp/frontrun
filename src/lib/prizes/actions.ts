@@ -60,14 +60,25 @@ export async function createPrizeSnapshot(input: {
       return { success: false, error: 'Failed to create prize period' };
     }
 
-    // Get current leaderboard
-    const { data: balances } = await admin
-      .from('user_balances')
-      .select('user_id, balance')
-      .order('balance', { ascending: false })
-      .limit(100);
+    // Get current leaderboard and bot IDs
+    const [balancesResult, botsResult] = await Promise.all([
+      admin
+        .from('user_balances')
+        .select('user_id, balance')
+        .order('balance', { ascending: false })
+        .limit(200),
+      admin
+        .from('profiles')
+        .select('id')
+        .eq('is_bot', true),
+    ]);
 
-    if (!balances || balances.length === 0) {
+    const botIds = new Set((botsResult.data ?? []).map((b) => b.id));
+    const balances = (balancesResult.data ?? [])
+      .filter((b) => b.user_id && !botIds.has(b.user_id))
+      .slice(0, 100);
+
+    if (balances.length === 0) {
       return { success: true, data: { periodId: period.id, entriesCount: 0 } };
     }
 

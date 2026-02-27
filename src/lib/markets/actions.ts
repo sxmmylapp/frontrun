@@ -28,7 +28,7 @@ type ActionResult<T = undefined> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-const INITIAL_LIQUIDITY = 1000; // Tokens to seed each market pool
+const INITIAL_LIQUIDITY = 5000; // Tokens to seed each market pool
 
 /**
  * Create a new market (binary or multiple choice).

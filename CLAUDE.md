@@ -96,7 +96,11 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  # Stripe publishable key (client-safe)
 
 ## Database
 
-Migrations in `supabase/migrations/` (00001–00009). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `leaderboard_snapshots`, `token_purchases`, `stripe_events`. Views: `user_balances`. RLS enabled on all tables. Generated types in `src/types/db.ts`. Atomic RPCs: `place_bet`, `cancel_bet`, `resolve_market`, `cancel_market`, `credit_token_purchase`.
+Migrations in `supabase/migrations/` (00001–00014). Key tables: `profiles`, `token_ledger`, `markets`, `market_pools`, `positions`, `prize_periods`, `leaderboard_snapshots`, `token_purchases`, `stripe_events`, `bot_trade_log`. Views: `user_balances`. RLS enabled on all tables. Generated types in `src/types/db.ts`. Atomic RPCs: `place_bet`, `cancel_bet`, `resolve_market`, `cancel_market`, `credit_token_purchase`.
+
+### Trading Bots
+
+10 bot accounts (`profiles.is_bot = true`) provide organic market activity via a Netlify scheduled function (`netlify/functions/bot-trader.mts`) running every 10 minutes. Strategies: `market_maker` (buys underdog when drift >15%), `threshold` (buys cheap side at extremes), `mean_reversion` (combines both with lower thresholds). Bot strategy stored in `auth.users.user_metadata.strategy`. Bots are excluded from leaderboard and prize snapshots. Activity logged to `bot_trade_log` table. Seed script: `scripts/seed-bots.ts`.
 
 ## Conventions
 
@@ -105,7 +109,7 @@ Migrations in `supabase/migrations/` (00001–00009). Key tables: `profiles`, `t
 - UI primitives live in `src/components/ui/` (shadcn), domain components in `src/components/<domain>/`
 - Zod is imported as `import { z } from 'zod/v4'` (v4 subpath export)
 - Phone validation: E.164 format (+1, 8-15 digits)
-- Token ledger reasons: `signup_bonus`, `bet_placed`, `bet_cancelled`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`
+- Token ledger reasons: `signup_bonus`, `bet_placed`, `bet_cancelled`, `resolution_payout`, `market_cancelled_refund`, `adjustment`, `token_purchase`, `bot_seed`
 - Admin authorization: check `profiles.is_admin` flag via admin client before privileged operations
-- New markets are seeded with 1000 tokens of initial liquidity (500 YES / 500 NO), house-funded
+- New markets are seeded with 5000 tokens of initial liquidity (2500 YES / 2500 NO), house-funded
 - Version injected at build time via `NEXT_PUBLIC_APP_VERSION` from `package.json`

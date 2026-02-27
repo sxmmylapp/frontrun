@@ -12,33 +12,69 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      bot_trade_log: {
+        Row: {
+          action: string
+          amount: number
+          bot_id: string
+          created_at: string | null
+          id: string
+          market_id: string
+          position_id: string | null
+          skip_reason: string | null
+          strategy: string
+          yes_prob: number
+        }
+        Insert: {
+          action: string
+          amount?: number
+          bot_id: string
+          created_at?: string | null
+          id?: string
+          market_id: string
+          position_id?: string | null
+          skip_reason?: string | null
+          strategy: string
+          yes_prob: number
+        }
+        Update: {
+          action?: string
+          amount?: number
+          bot_id?: string
+          created_at?: string | null
+          id?: string
+          market_id?: string
+          position_id?: string | null
+          skip_reason?: string | null
+          strategy?: string
+          yes_prob?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_trade_log_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_trade_log_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_trade_log_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leaderboard_snapshots: {
         Row: {
           balance: number
@@ -336,6 +372,7 @@ export type Database = {
           id: string
           is_admin: boolean | null
           is_banned: boolean
+          is_bot: boolean
           notify_market_resolved: boolean | null
           notify_new_markets: boolean | null
           phone: string
@@ -349,6 +386,7 @@ export type Database = {
           id: string
           is_admin?: boolean | null
           is_banned?: boolean
+          is_bot?: boolean
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone: string
@@ -362,6 +400,7 @@ export type Database = {
           id?: string
           is_admin?: boolean | null
           is_banned?: boolean
+          is_bot?: boolean
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone?: string
@@ -716,9 +755,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
