@@ -70,6 +70,120 @@ export async function createNotification(input: {
   }
 }
 
+// --- Update Notification ---
+
+const updateNotificationSchema = z.object({
+  id: z.uuid('Invalid notification ID'),
+  title: z.string().optional(),
+  message: z.string().min(1, 'Message is required'),
+  maxViews: z.number().int().min(1).max(100),
+});
+
+export async function updateNotification(input: {
+  id: string;
+  title?: string;
+  message: string;
+  maxViews: number;
+}): Promise<ActionResult<{ id: string }>> {
+  const ts = new Date().toISOString();
+
+  const parsed = updateNotificationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return { success: false, error: 'Not authorized — admin only' };
+    }
+
+    const { error } = await admin
+      .from('notifications')
+      .update({
+        title: parsed.data.title || null,
+        message: parsed.data.message,
+        max_views: parsed.data.maxViews,
+      })
+      .eq('id', parsed.data.id);
+
+    if (error) {
+      console.error(`[${ts}] updateNotification ERROR: ${error.message}`);
+      return { success: false, error: 'Failed to update notification' };
+    }
+
+    console.info(`[${ts}] updateNotification INFO: admin=${user.id} updated notification=${parsed.data.id}`);
+    return { success: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    console.error(`[${ts}] updateNotification ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
+// --- Delete Notification ---
+
+const deleteNotificationSchema = z.object({
+  id: z.uuid('Invalid notification ID'),
+});
+
+export async function deleteNotification(input: {
+  id: string;
+}): Promise<ActionResult<{ id: string }>> {
+  const ts = new Date().toISOString();
+
+  const parsed = deleteNotificationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return { success: false, error: 'Not authorized — admin only' };
+    }
+
+    const { error } = await admin
+      .from('notifications')
+      .delete()
+      .eq('id', parsed.data.id);
+
+    if (error) {
+      console.error(`[${ts}] deleteNotification ERROR: ${error.message}`);
+      return { success: false, error: 'Failed to delete notification' };
+    }
+
+    console.info(`[${ts}] deleteNotification INFO: admin=${user.id} deleted notification=${parsed.data.id}`);
+    return { success: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    console.error(`[${ts}] deleteNotification ERROR: unexpected -`, err);
+    return { success: false, error: 'Something went wrong' };
+  }
+}
+
 // --- List Notifications (admin history) ---
 
 export type NotificationHistoryItem = {
