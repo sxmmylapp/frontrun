@@ -43,11 +43,19 @@ function VerifyForm() {
       setLoading(false);
 
       if (result.success) {
-        // Process referral code from cookie (fire-and-forget)
+        // Process referral code from cookie (must await before navigating)
         const refMatch = document.cookie.match(/(?:^|;\s*)frontrun_ref=([A-F0-9]{8})/);
         if (refMatch) {
-          processReferral(refMatch[1]).catch(() => {});
-          document.cookie = 'frontrun_ref=; max-age=0; path=/';
+          const refResult = await processReferral(refMatch[1]);
+          if (refResult.success) {
+            document.cookie = 'frontrun_ref=; max-age=0; path=/';
+            toast.success('Referral linked! Your friend earns 1,000 tokens when you place your first bet');
+          } else {
+            // Only clear cookie if it's a permanent failure (not a transient error)
+            if (refResult.error !== 'Something went wrong' && refResult.error !== 'Failed to process referral') {
+              document.cookie = 'frontrun_ref=; max-age=0; path=/';
+            }
+          }
         }
         router.push('/feed');
       } else {

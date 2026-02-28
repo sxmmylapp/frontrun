@@ -443,6 +443,7 @@ export type Database = {
           notify_market_resolved: boolean | null
           notify_new_markets: boolean | null
           phone: string
+          referral_bonus_credited: boolean
           referral_code: string
           referred_by: string | null
           updated_at: string | null
@@ -459,6 +460,7 @@ export type Database = {
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone: string
+          referral_bonus_credited?: boolean
           referral_code: string
           referred_by?: string | null
           updated_at?: string | null
@@ -475,6 +477,7 @@ export type Database = {
           notify_market_resolved?: boolean | null
           notify_new_markets?: boolean | null
           phone?: string
+          referral_bonus_credited?: boolean
           referral_code?: string
           referred_by?: string | null
           updated_at?: string | null

@@ -223,7 +223,7 @@ export function ProfileClient({ displayName, isAdmin, positions, balance, notify
             <div className="text-sm">
               <span className="font-medium">{referralCount}</span>{' '}
               <span className="text-muted-foreground">
-                {referralCount === 1 ? 'friend' : 'friends'} referred
+                {referralCount === 1 ? 'referral' : 'referrals'} completed
                 {referralCount > 0 && ` (+${(referralCount * 1000).toLocaleString()} tokens earned)`}
               </span>
             </div>

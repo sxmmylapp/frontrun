@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod/v4';
 import { notifyNewMarket } from '@/lib/notifications/sms';
+import { creditReferralBonus } from '@/lib/referrals/actions';
 
 const createMarketSchema = z.object({
   question: z.string().min(5, 'Question must be at least 5 characters'),
@@ -290,6 +291,10 @@ export async function placeBet(input: {
       }
 
       console.info(`[${ts}] placeBet INFO: user ${user.id} bet ${input.amount} on ${result.outcome_label} in mc market ${input.marketId}`);
+
+      // Fire-and-forget referral bonus credit
+      creditReferralBonus(user.id, input.amount).catch(console.error);
+
       return {
         success: true,
         data: {
@@ -350,6 +355,10 @@ export async function placeBet(input: {
       }
 
       console.info(`[${ts}] placeBet INFO: user ${user.id} bet ${input.amount} on ${input.outcome} in market ${input.marketId}`);
+
+      // Fire-and-forget referral bonus credit
+      creditReferralBonus(user.id, input.amount).catch(console.error);
+
       return {
         success: true,
         data: {
