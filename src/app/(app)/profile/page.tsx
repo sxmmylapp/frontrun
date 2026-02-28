@@ -40,7 +40,8 @@ export default async function ProfilePage() {
     admin
       .from('profiles')
       .select('id', { count: 'exact', head: true })
-      .eq('referred_by', user.id),
+      .eq('referred_by', user.id)
+      .eq('referral_bonus_credited', true),
   ]);
 
   const profile = profileResult.data;
