@@ -75,10 +75,10 @@ const STRATEGY_CONFIG: Record<string, {
 // ---------- Strategy decision functions ----------
 
 function marketMakerDecision(yesProb: number, maxAmount: number): TradeDecision {
-  // Buy the underdog when prob drifts >15% from 50%
+  // Buy the underdog when prob drifts >3% from 50%
   const drift = Math.abs(yesProb - 0.5);
-  if (drift < 0.15) {
-    return { action: 'skip', amount: 0, skipReason: `drift ${(drift * 100).toFixed(1)}% < 15% threshold` };
+  if (drift < 0.03) {
+    return { action: 'skip', amount: 0, skipReason: `drift ${(drift * 100).toFixed(1)}% < 3% threshold` };
   }
   // Bet size proportional to drift (more drift = bigger bet)
   const sizeFactor = Math.min(drift / 0.5, 1); // 0-1 scale
@@ -90,24 +90,24 @@ function marketMakerDecision(yesProb: number, maxAmount: number): TradeDecision 
 }
 
 function thresholdDecision(yesProb: number, maxAmount: number): TradeDecision {
-  // Buy the cheap side at extreme odds
-  if (yesProb >= 0.30 && yesProb <= 0.70) {
-    return { action: 'skip', amount: 0, skipReason: `prob ${(yesProb * 100).toFixed(1)}% within 30-70% range` };
+  // Buy the cheap side when odds diverge from 50/50
+  if (yesProb >= 0.45 && yesProb <= 0.55) {
+    return { action: 'skip', amount: 0, skipReason: `prob ${(yesProb * 100).toFixed(1)}% within 45-55% range` };
   }
   const amount = Math.max(20, Math.round(maxAmount * 0.6));
   return {
-    action: yesProb < 0.30 ? 'buy_yes' : 'buy_no',
+    action: yesProb < 0.45 ? 'buy_yes' : 'buy_no',
     amount,
   };
 }
 
 function meanReversionDecision(yesProb: number, maxAmount: number): TradeDecision {
-  // Combines market-maker + threshold with lower thresholds
+  // Combines market-maker + threshold with low thresholds
   const drift = Math.abs(yesProb - 0.5);
 
-  // Mean-reversion triggers at lower threshold (10%)
-  if (drift < 0.10) {
-    return { action: 'skip', amount: 0, skipReason: `drift ${(drift * 100).toFixed(1)}% < 10% threshold` };
+  // Mean-reversion triggers at 2% drift
+  if (drift < 0.02) {
+    return { action: 'skip', amount: 0, skipReason: `drift ${(drift * 100).toFixed(1)}% < 2% threshold` };
   }
 
   // Larger bets at extreme odds (>35% from center)
