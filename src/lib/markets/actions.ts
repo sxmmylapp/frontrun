@@ -72,11 +72,11 @@ export async function createMarket(input: {
     return { success: false, error: 'Close date must be in the future' };
   }
 
-  // Validate closes_at is within 3 months
+  // Validate closes_at is within 2 days
   const maxDate = new Date(now);
-  maxDate.setMonth(maxDate.getMonth() + 3);
+  maxDate.setDate(maxDate.getDate() + 2);
   if (new Date(closesAt) > maxDate) {
-    return { success: false, error: 'Close date cannot be more than 3 months from now' };
+    return { success: false, error: 'Close date cannot be more than 2 days from now' };
   }
 
   try {
@@ -396,12 +396,23 @@ export async function cancelBet(input: {
 
     const admin = createAdminClient();
 
-    // Check if this is a multi-choice position (has outcome_id)
+    // Check if this is a multi-choice position and fetch market close date
     const { data: position } = await admin
       .from('positions')
-      .select('outcome_id')
+      .select('outcome_id, market_id, markets!inner(closes_at, status)')
       .eq('id', input.positionId)
       .single();
+
+    // Block selling after market close
+    const marketInfo = position?.markets as unknown as { closes_at: string; status: string } | undefined;
+    if (marketInfo) {
+      if (marketInfo.status !== 'open') {
+        return { success: false, error: 'Market is not open' };
+      }
+      if (new Date(marketInfo.closes_at) <= new Date()) {
+        return { success: false, error: 'Cannot sell positions after the market has closed' };
+      }
+    }
 
     const isMultiChoice = position?.outcome_id != null;
 
