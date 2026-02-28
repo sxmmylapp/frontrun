@@ -16,9 +16,10 @@ type BetSlipProps = {
   noPool: number;
   userPositionCost: number;
   totalSharesByOutcome?: Record<string, number>;
+  totalCostByOutcome?: Record<string, number>;
 };
 
-export function BetSlip({ marketId, yesPool, noPool, userPositionCost, totalSharesByOutcome = {} }: BetSlipProps) {
+export function BetSlip({ marketId, yesPool, noPool, userPositionCost, totalSharesByOutcome = {}, totalCostByOutcome = {} }: BetSlipProps) {
   const router = useRouter();
   const { balance } = useUserBalance();
   const [outcome, setOutcome] = useState<'yes' | 'no'>('yes');
@@ -49,12 +50,17 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost, totalShar
       const result = previewTrade(pool, outcome, new Decimal(numAmount));
       const shares = result.sharesReceived.toDecimalPlaces(2).toNumber();
 
-      // Realistic payout estimate: shares * (totalPool / totalWinningShares)
+      // Hybrid payout estimate: refund cost + share of surplus
       const newTotalPool = yesPool + noPool + numAmount - shares;
       const existingWinningShares = totalSharesByOutcome[outcome] ?? 0;
       const totalWinningShares = existingWinningShares + shares;
+      const existingCost = totalCostByOutcome[outcome] ?? 0;
+      const totalWinningCost = existingCost + numAmount;
+      const surplus = newTotalPool - totalWinningCost;
       const estPayout = totalWinningShares > 0
-        ? shares * (newTotalPool / totalWinningShares)
+        ? surplus >= 0
+          ? numAmount + (shares / totalWinningShares) * surplus
+          : numAmount * (newTotalPool / totalWinningCost)
         : 0;
       const multiplier = numAmount > 0 ? estPayout / numAmount : 0;
 
@@ -67,7 +73,7 @@ export function BetSlip({ marketId, yesPool, noPool, userPositionCost, totalShar
     } catch {
       return null;
     }
-  }, [numAmount, outcome, yesPool, noPool, maxBet, totalSharesByOutcome]);
+  }, [numAmount, outcome, yesPool, noPool, maxBet, totalSharesByOutcome, totalCostByOutcome]);
 
   async function handleBet() {
     if (numAmount <= 0 || numAmount > balance || numAmount > maxBet || numAmount > remaining) return;

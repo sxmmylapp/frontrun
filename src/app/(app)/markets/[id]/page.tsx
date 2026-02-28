@@ -68,12 +68,14 @@ export default async function MarketPage({
   }));
   const volume = allPositions.reduce((sum, p) => sum + Number(p.cost), 0);
 
-  // Aggregate total outstanding shares per outcome for realistic payout estimates
+  // Aggregate total outstanding shares and cost per outcome for hybrid payout estimates
   // Binary: keyed by 'yes'/'no'. Multi-choice: keyed by outcome_id (UUID).
   const totalSharesByOutcome: Record<string, number> = {};
+  const totalCostByOutcome: Record<string, number> = {};
   for (const p of allPositions) {
     const key = (isMultiChoice && p.outcome_id) ? p.outcome_id : p.outcome;
     totalSharesByOutcome[key] = (totalSharesByOutcome[key] ?? 0) + Number(p.shares);
+    totalCostByOutcome[key] = (totalCostByOutcome[key] ?? 0) + Number(p.cost);
   }
 
   const activityFeed = (activityResult.data ?? []).map((p) => {
@@ -170,6 +172,7 @@ export default async function MarketPage({
       outcomes={marketOutcomes}
       initialOutcomePools={outcomePools}
       totalSharesByOutcome={totalSharesByOutcome}
+      totalCostByOutcome={totalCostByOutcome}
     />
   );
 }

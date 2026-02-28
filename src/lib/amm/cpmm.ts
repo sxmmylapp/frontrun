@@ -156,6 +156,7 @@ export function createMarketPool(liquidity: Decimal): PoolState {
  * Calculate payout per share after market resolution.
  * Winners split the total pool proportionally to their shares.
  *
+ * @deprecated Use hybridPayout() instead — this formula can cause winners to lose money.
  * @param totalPool - Sum of yesPool + noPool at resolution
  * @param winningShares - Total shares held by all winners
  * @returns Tokens per share for winners
@@ -166,6 +167,32 @@ export function payoutPerShare(
 ): Decimal {
   if (winningShares.isZero()) return new Decimal(0);
   return totalPool.div(winningShares);
+}
+
+/**
+ * Hybrid payout formula: refund cost first, then distribute surplus by shares.
+ *
+ * Guarantees all winners profit (payout >= cost), preserves early-buyer advantage
+ * (more shares = more surplus), and total payouts = totalPool.
+ *
+ * Fallback: if surplus < 0 (extreme edge case), pro-rata by cost.
+ */
+export function hybridPayout(
+  totalPool: Decimal,
+  totalWinningShares: Decimal,
+  totalWinningCost: Decimal,
+  userShares: Decimal,
+  userCost: Decimal,
+): Decimal {
+  if (totalWinningShares.isZero()) return new Decimal(0);
+  const surplus = totalPool.minus(totalWinningCost);
+  if (surplus.gte(0)) {
+    return userCost.plus(
+      userShares.div(totalWinningShares).mul(surplus)
+    );
+  }
+  // Fallback: pro-rata by cost
+  return userCost.mul(totalPool.div(totalWinningCost));
 }
 
 /**

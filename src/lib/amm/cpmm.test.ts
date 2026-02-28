@@ -11,6 +11,7 @@ import {
   previewSell,
   createMarketPool,
   payoutPerShare,
+  hybridPayout,
 } from './cpmm';
 
 function d(n: number | string): Decimal {
@@ -164,6 +165,100 @@ describe('CPMM', () => {
 
     it('returns 0 when no winning shares', () => {
       expect(payoutPerShare(d(1000), d(0)).toNumber()).toBe(0);
+    });
+  });
+
+  describe('hybridPayout', () => {
+    it('distributes surplus proportional to shares when surplus > 0', () => {
+      // Total pool = 1000, two winners:
+      // Winner A: 60 shares, cost 100
+      // Winner B: 40 shares, cost 200
+      // Total winning shares = 100, total winning cost = 300, surplus = 700
+      const totalPool = d(1000);
+      const totalShares = d(100);
+      const totalCost = d(300);
+
+      const payoutA = hybridPayout(totalPool, totalShares, totalCost, d(60), d(100));
+      const payoutB = hybridPayout(totalPool, totalShares, totalCost, d(40), d(200));
+
+      // A: 100 + (60/100 * 700) = 100 + 420 = 520
+      expect(payoutA.toNumber()).toBe(520);
+      // B: 200 + (40/100 * 700) = 200 + 280 = 480
+      expect(payoutB.toNumber()).toBe(480);
+
+      // Both winners profit
+      expect(payoutA.gt(d(100))).toBe(true);
+      expect(payoutB.gt(d(200))).toBe(true);
+
+      // Token conservation: sum = totalPool
+      expect(payoutA.add(payoutB).toNumber()).toBe(1000);
+    });
+
+    it('returns exact cost when surplus = 0', () => {
+      // Total pool = total winning cost = 500
+      const totalPool = d(500);
+      const totalShares = d(80);
+      const totalCost = d(500);
+
+      const payout = hybridPayout(totalPool, totalShares, totalCost, d(50), d(300));
+      // surplus = 0, so payout = cost + 0 = cost
+      expect(payout.toNumber()).toBe(300);
+    });
+
+    it('gives entire pool to single winner', () => {
+      const totalPool = d(1000);
+      const payout = hybridPayout(totalPool, d(50), d(200), d(50), d(200));
+      // Single winner: cost + (50/50 * (1000 - 200)) = 200 + 800 = 1000
+      expect(payout.toNumber()).toBe(1000);
+    });
+
+    it('uses pro-rata by cost for negative surplus fallback', () => {
+      // Edge case: total_pool < total_winning_cost
+      // This shouldn't happen normally but we handle it gracefully
+      const totalPool = d(100);
+      const totalShares = d(50);
+      const totalCost = d(200); // More cost than pool
+
+      const payoutA = hybridPayout(totalPool, totalShares, totalCost, d(30), d(120));
+      const payoutB = hybridPayout(totalPool, totalShares, totalCost, d(20), d(80));
+
+      // A: 120 * (100/200) = 60
+      expect(payoutA.toNumber()).toBe(60);
+      // B: 80 * (100/200) = 40
+      expect(payoutB.toNumber()).toBe(40);
+
+      // Token conservation
+      expect(payoutA.add(payoutB).toNumber()).toBe(100);
+    });
+
+    it('returns 0 when no winning shares', () => {
+      const payout = hybridPayout(d(1000), d(0), d(0), d(0), d(0));
+      expect(payout.toNumber()).toBe(0);
+    });
+
+    it('conserves tokens across many winners', () => {
+      const totalPool = d(5000);
+      const winners = [
+        { shares: d(100), cost: d(50) },
+        { shares: d(200), cost: d(150) },
+        { shares: d(50), cost: d(80) },
+        { shares: d(300), cost: d(400) },
+        { shares: d(150), cost: d(120) },
+      ];
+
+      const totalShares = winners.reduce((s, w) => s.add(w.shares), d(0));
+      const totalCost = winners.reduce((s, w) => s.add(w.cost), d(0));
+
+      let totalPayout = d(0);
+      for (const w of winners) {
+        const payout = hybridPayout(totalPool, totalShares, totalCost, w.shares, w.cost);
+        totalPayout = totalPayout.add(payout);
+        // Every winner should profit
+        expect(payout.gte(w.cost)).toBe(true);
+      }
+
+      // Total payouts = total pool
+      expect(totalPayout.toDecimalPlaces(8).eq(totalPool)).toBe(true);
     });
   });
 
