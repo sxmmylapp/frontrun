@@ -13,26 +13,41 @@ export default async function LeaderboardPage() {
   // Use admin client to query across all users (RLS on profiles only allows own)
   const admin = createAdminClient();
 
-  // Parallel fetch: balances + bot IDs + current user auth
+  // Parallel fetch: balances + bot IDs + admin IDs + current user auth
   const supabase = await createClient();
-  const [balancesResult, botsResult, userResult] = await Promise.all([
+  const [balancesResult, botsResult, adminsResult, userResult] = await Promise.all([
     admin
       .from('user_balances')
       .select('user_id, balance')
       .order('balance', { ascending: false })
-      .limit(200), // Fetch extra to account for filtered bots
+      .limit(200), // Fetch extra to account for filtered bots/admins
     admin
       .from('profiles')
       .select('id')
       .eq('is_bot', true),
+    admin
+      .from('profiles')
+      .select('id')
+      .eq('is_admin', true),
     supabase.auth.getUser(),
   ]);
 
-  const botIds = new Set((botsResult.data ?? []).map((b) => b.id));
-  const balances = (balancesResult.data ?? [])
-    .filter((b) => b.user_id && !botIds.has(b.user_id))
-    .slice(0, 100);
   const user = userResult.data.user;
+  const botIds = new Set((botsResult.data ?? []).map((b) => b.id));
+  const adminIds = new Set((adminsResult.data ?? []).map((a) => a.id));
+
+  // Check if the current user is an admin
+  const isCurrentUserAdmin = user ? adminIds.has(user.id) : false;
+
+  // Filter out bots always; filter out admins for non-admin viewers
+  const excludeIds = new Set(botIds);
+  if (!isCurrentUserAdmin) {
+    adminIds.forEach((id) => excludeIds.add(id));
+  }
+
+  const balances = (balancesResult.data ?? [])
+    .filter((b) => b.user_id && !excludeIds.has(b.user_id))
+    .slice(0, 100);
 
   if (balances.length === 0) {
     return (
