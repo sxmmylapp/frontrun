@@ -23,9 +23,10 @@ type BetSlipMultiProps = {
   outcomes: OutcomeOption[];
   userPositionCost: number;
   totalSharesByOutcome?: Record<string, number>;
+  totalCostByOutcome?: Record<string, number>;
 };
 
-export function BetSlipMulti({ marketId, outcomes, userPositionCost, totalSharesByOutcome = {} }: BetSlipMultiProps) {
+export function BetSlipMulti({ marketId, outcomes, userPositionCost, totalSharesByOutcome = {}, totalCostByOutcome = {} }: BetSlipMultiProps) {
   const router = useRouter();
   const { balance } = useUserBalance();
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
@@ -61,11 +62,16 @@ export function BetSlipMulti({ marketId, outcomes, userPositionCost, totalShares
         newTotalPool += p.toNumber();
       }
 
-      // Realistic payout: shares * (totalPool / totalWinningShares)
+      // Hybrid payout estimate: refund cost + share of surplus
       const existingWinningShares = totalSharesByOutcome[selectedOutcome] ?? 0;
       const totalWinningShares = existingWinningShares + shares;
+      const existingCost = totalCostByOutcome[selectedOutcome] ?? 0;
+      const totalWinningCost = existingCost + numAmount;
+      const surplus = newTotalPool - totalWinningCost;
       const estPayout = totalWinningShares > 0
-        ? shares * (newTotalPool / totalWinningShares)
+        ? surplus >= 0
+          ? numAmount + (shares / totalWinningShares) * surplus
+          : numAmount * (newTotalPool / totalWinningCost)
         : 0;
       const multiplier = numAmount > 0 ? estPayout / numAmount : 0;
 
@@ -79,7 +85,7 @@ export function BetSlipMulti({ marketId, outcomes, userPositionCost, totalShares
     } catch {
       return null;
     }
-  }, [numAmount, selectedOutcome, outcomes, maxBet, totalSharesByOutcome]);
+  }, [numAmount, selectedOutcome, outcomes, maxBet, totalSharesByOutcome, totalCostByOutcome]);
 
   async function handleBet() {
     if (!selectedOutcome || numAmount <= 0 || numAmount > balance || numAmount > maxBet || numAmount > remaining) return;

@@ -69,6 +69,7 @@ type MarketProps = {
   outcomes?: MarketOutcome[];
   initialOutcomePools?: OutcomePool[];
   totalSharesByOutcome?: Record<string, number>;
+  totalCostByOutcome?: Record<string, number>;
 };
 
 function calcProb(yesPool: number, noPool: number): number {
@@ -153,6 +154,7 @@ export function MarketDetail({
   outcomes,
   initialOutcomePools,
   totalSharesByOutcome = {},
+  totalCostByOutcome = {},
 }: MarketProps) {
   const isMultiChoice = market.marketType === 'multiple_choice';
 
@@ -409,6 +411,7 @@ export function MarketDetail({
               }))}
               userPositionCost={userPositions.reduce((sum, p) => sum + p.cost, 0)}
               totalSharesByOutcome={totalSharesByOutcome}
+              totalCostByOutcome={totalCostByOutcome}
             />
           ) : (
             <BetSlip
@@ -417,6 +420,7 @@ export function MarketDetail({
               noPool={pool.noPool}
               userPositionCost={userPositions.reduce((sum, p) => sum + p.cost, 0)}
               totalSharesByOutcome={totalSharesByOutcome}
+              totalCostByOutcome={totalCostByOutcome}
             />
           )}
         </Suspense>
