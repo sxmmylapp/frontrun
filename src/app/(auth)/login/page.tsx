@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { sendOtp } from '@/lib/auth/actions';
 import { toast } from 'sonner';
+import { Suspense } from 'react';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ref = searchParams.get('ref');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,8 +31,10 @@ export default function LoginPage() {
     setLoading(false);
 
     if (result.success) {
-      // Pass phone via search params to verify page
-      router.push(`/verify?phone=${encodeURIComponent(normalized)}`);
+      // Pass phone (and ref code if present) via search params to verify page
+      let verifyUrl = `/verify?phone=${encodeURIComponent(normalized)}`;
+      if (ref) verifyUrl += `&ref=${encodeURIComponent(ref)}`;
+      router.push(verifyUrl);
     } else {
       toast.error(result.error);
     }
@@ -66,5 +71,13 @@ export default function LoginPage() {
         {loading ? 'Sending...' : 'Send Code'}
       </Button>
     </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="text-center text-muted-foreground text-sm">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

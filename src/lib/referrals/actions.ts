@@ -122,6 +122,7 @@ export async function creditReferralBonus(userId: string, betAmount: number): Pr
 
   // Anti-abuse: minimum bet amount
   if (betAmount < MIN_BET_FOR_REFERRAL) {
+    console.info(`[${ts}] creditReferralBonus INFO: bet amount ${betAmount} below minimum ${MIN_BET_FOR_REFERRAL} for user ${userId}, skipping`);
     return;
   }
 
@@ -135,8 +136,13 @@ export async function creditReferralBonus(userId: string, betAmount: number): Pr
       .eq('id', userId)
       .single();
 
-    if (!profile?.referred_by || profile.referral_bonus_credited) {
-      return; // No referrer or already credited
+    if (!profile?.referred_by) {
+      console.info(`[${ts}] creditReferralBonus INFO: user ${userId} has no referrer, skipping`);
+      return;
+    }
+    if (profile.referral_bonus_credited) {
+      console.info(`[${ts}] creditReferralBonus INFO: user ${userId} referral bonus already credited, skipping`);
+      return;
     }
 
     // Validate referrer still exists, not banned, not bot
@@ -156,7 +162,7 @@ export async function creditReferralBonus(userId: string, betAmount: number): Pr
       .from('profiles')
       .update({ referral_bonus_credited: true })
       .eq('id', userId)
-      .eq('referral_bonus_credited', false)
+      .or('referral_bonus_credited.eq.false,referral_bonus_credited.is.null')
       .eq('referred_by', profile.referred_by)
       .select('id')
       .single();

@@ -53,11 +53,15 @@ export async function middleware(request: NextRequest) {
     if (protectedPrefixes.some((p) => pathname.startsWith(p))) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
+      url.search = ''; // Clear existing params
+      if (refCode) url.searchParams.set('ref', refCode);
       return NextResponse.redirect(url);
     }
     if (pathname === '/') {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
+      url.search = ''; // Clear existing params
+      if (refCode) url.searchParams.set('ref', refCode);
       return NextResponse.redirect(url);
     }
     return supabaseResponse;
