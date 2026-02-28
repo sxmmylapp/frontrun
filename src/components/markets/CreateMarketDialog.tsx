@@ -233,7 +233,7 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
               min={new Date().toISOString().slice(0, 16)}
               max={(() => {
                 const d = new Date();
-                d.setMonth(d.getMonth() + 3);
+                d.setDate(d.getDate() + 2);
                 return d.toISOString().slice(0, 16);
               })()}
             />

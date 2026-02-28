@@ -56,7 +56,7 @@ All mutations use Next.js server actions in `src/lib/*/actions.ts` with a consis
 
 ### Market Creation Flow
 
-- Validates question (5+ chars), resolution criteria (10+ chars), close date (3-month max)
+- Validates question (5+ chars), resolution criteria (10+ chars), close date (2-day max)
 - Prevents duplicate open markets with same question (case-insensitive)
 - Seeds 5000 tokens of initial liquidity (house-funded): 2500 YES / 2500 NO for binary, split equally for multi-choice
 - Fire-and-forget SMS notification to opted-in users

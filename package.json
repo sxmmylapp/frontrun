@@ -1,6 +1,6 @@
 {
   "name": "prediction-market",
-  "version": "1.7.2",
+  "version": "1.8.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
