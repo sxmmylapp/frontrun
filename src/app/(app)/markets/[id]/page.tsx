@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import { MarketDetail } from '@/components/markets/MarketDetail';
 
@@ -78,7 +79,7 @@ export default async function MarketPage({
     totalCostByOutcome[key] = (totalCostByOutcome[key] ?? 0) + Number(p.cost);
   }
 
-  const activityFeed = (activityResult.data ?? []).map((p) => {
+  const activityFeedAll = (activityResult.data ?? []).map((p) => {
     const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
     return {
       id: p.id,
@@ -139,6 +140,18 @@ export default async function MarketPage({
     if (positionsResult.data) {
       userPositions = positionsResult.data;
     }
+  }
+
+  // Filter bot trades from activity feed for non-admin users
+  let activityFeed = activityFeedAll;
+  if (!isAdmin) {
+    const admin = createAdminClient();
+    const botsResult = await admin
+      .from('profiles')
+      .select('display_name')
+      .eq('is_bot', true);
+    const botNames = new Set((botsResult.data ?? []).map((b) => b.display_name));
+    activityFeed = activityFeedAll.filter((item) => !botNames.has(item.displayName));
   }
 
   const pool = Array.isArray(market.market_pools)
