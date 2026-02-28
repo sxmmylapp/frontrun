@@ -43,10 +43,12 @@ function VerifyForm() {
       setLoading(false);
 
       if (result.success) {
-        // Process referral code from cookie (must await before navigating)
+        // Process referral code from cookie OR search params (must await before navigating)
         const refMatch = document.cookie.match(/(?:^|;\s*)frontrun_ref=([A-F0-9]{8})/);
-        if (refMatch) {
-          const refResult = await processReferral(refMatch[1]);
+        const refFromParams = searchParams.get('ref')?.toUpperCase();
+        const refCode = refMatch?.[1] || (refFromParams && /^[A-F0-9]{8}$/.test(refFromParams) ? refFromParams : null);
+        if (refCode) {
+          const refResult = await processReferral(refCode);
           if (refResult.success) {
             document.cookie = 'frontrun_ref=; max-age=0; path=/';
             toast.success('Referral linked! Your friend earns 1,000 tokens when you place your first bet');
