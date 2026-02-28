@@ -27,11 +27,12 @@ type ActivityFeedProps = {
   initialItems: ActivityItem[];
   marketType?: 'binary' | 'multiple_choice';
   outcomes?: MarketOutcome[];
+  isAdmin?: boolean;
 };
 
 const INITIAL_DISPLAY = 20;
 
-export function ActivityFeed({ marketId, initialItems, marketType = 'binary', outcomes }: ActivityFeedProps) {
+export function ActivityFeed({ marketId, initialItems, marketType = 'binary', outcomes, isAdmin = false }: ActivityFeedProps) {
   const [items, setItems] = useState(initialItems);
   const [showAll, setShowAll] = useState(false);
 
@@ -59,12 +60,15 @@ export function ActivityFeed({ marketId, initialItems, marketType = 'binary', ou
             user_id: string;
           };
 
-          // Fetch display name for the new position's user
+          // Fetch display name and bot status for the new position's user
           const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name')
+            .select('display_name, is_bot')
             .eq('id', row.user_id)
             .single();
+
+          // Hide bot trades from non-admin users
+          if (!isAdmin && profile?.is_bot) return;
 
           const newItem: ActivityItem = {
             id: row.id,

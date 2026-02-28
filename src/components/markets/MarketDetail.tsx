@@ -458,6 +458,7 @@ export function MarketDetail({
         initialItems={activityFeed}
         marketType={market.marketType}
         outcomes={outcomes}
+        isAdmin={isAdmin}
       />
 
       {/* Admin resolution panel */}
