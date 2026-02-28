@@ -230,11 +230,14 @@ export function CreateMarketDialog({ onClose }: { onClose: () => void }) {
               value={closesAt}
               onChange={(e) => setClosesAt(e.target.value)}
               className="rounded-sm"
-              min={new Date().toISOString().slice(0, 16)}
+              min={(() => {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              })()}
               max={(() => {
                 const d = new Date();
                 d.setDate(d.getDate() + 2);
-                return d.toISOString().slice(0, 16);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
               })()}
             />
           </div>
