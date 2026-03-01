@@ -212,9 +212,9 @@ describe('CPMM', () => {
       expect(payout.toNumber()).toBe(1000);
     });
 
-    it('uses pro-rata by cost for negative surplus fallback', () => {
-      // Edge case: total_pool < total_winning_cost
-      // This shouldn't happen normally but we handle it gracefully
+    it('returns cost (break-even floor) for negative surplus fallback', () => {
+      // Edge case: total_pool < total_winning_cost (pool drained by cancellations)
+      // Winners always get at least their cost back — house absorbs shortfall
       const totalPool = d(100);
       const totalShares = d(50);
       const totalCost = d(200); // More cost than pool
@@ -222,13 +222,12 @@ describe('CPMM', () => {
       const payoutA = hybridPayout(totalPool, totalShares, totalCost, d(30), d(120));
       const payoutB = hybridPayout(totalPool, totalShares, totalCost, d(20), d(80));
 
-      // A: 120 * (100/200) = 60
-      expect(payoutA.toNumber()).toBe(60);
-      // B: 80 * (100/200) = 40
-      expect(payoutB.toNumber()).toBe(40);
+      // Each winner gets their cost back (break-even)
+      expect(payoutA.toNumber()).toBe(120);
+      expect(payoutB.toNumber()).toBe(80);
 
-      // Token conservation
-      expect(payoutA.add(payoutB).toNumber()).toBe(100);
+      // Total payouts exceed pool — house absorbs the 100-token shortfall
+      expect(payoutA.add(payoutB).toNumber()).toBe(200);
     });
 
     it('returns 0 when no winning shares', () => {

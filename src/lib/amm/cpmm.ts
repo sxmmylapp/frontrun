@@ -175,7 +175,7 @@ export function payoutPerShare(
  * Guarantees all winners profit (payout >= cost), preserves early-buyer advantage
  * (more shares = more surplus), and total payouts = totalPool.
  *
- * Fallback: if surplus < 0 (extreme edge case), pro-rata by cost.
+ * Fallback: if surplus < 0 (extreme edge case), return cost (break-even floor).
  */
 export function hybridPayout(
   totalPool: Decimal,
@@ -191,8 +191,8 @@ export function hybridPayout(
       userShares.div(totalWinningShares).mul(surplus)
     );
   }
-  // Fallback: pro-rata by cost
-  return userCost.mul(totalPool.div(totalWinningCost));
+  // Fallback: return cost (break-even floor). House absorbs shortfall.
+  return userCost;
 }
 
 /**
